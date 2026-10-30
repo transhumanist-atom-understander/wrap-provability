@@ -3,6 +3,7 @@
     with Decider() as d:
         t = d.tableau("□(□p → p) → □p")   # t.theorem, and t.lean, the tableau as a Lean file
         d.tex(t.lean)                     # the tableau as a LaTeX prooftree
+        d.sentence_tex(t.lean)            # the sentence in LaTeX
         d.verify(t.lean)                  # a Lean proof that the tableau's verdict is right
 
 A `Decider` runs the `tableau` server of the Lean project `gl-tableau`, found at `$GL_TABLEAU`
@@ -73,6 +74,10 @@ class Decider:
         """The tableau of the Lean file `tableau` as a `prooftree` of the LaTeX package
         `prooftrees`."""
         return self._run(tableau + "\n#eval IO.print t.tex")
+
+    def sentence_tex(self, tableau):
+        """The sentence of the Lean file `tableau` in LaTeX, for math mode."""
+        return self._run(tableau + "\n#eval IO.print (t.sentence.render .tex)")
 
     def verify(self, tableau):
         """The Lean file `tableau` with a proof of its verdict, that its sentence is or is not

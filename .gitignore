@@ -1,0 +1,4 @@
+.venv
+dist
+.python-version
+src/gltableau/__pycache__/

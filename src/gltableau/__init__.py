@@ -1,10 +1,11 @@
 """GL tableaux, checked by Lean.
 
     with Decider() as d:
-        t = d.tableau("□(□p → p) → □p")   # t.theorem, and t.lean, the tableau as a Lean file
-        d.tex(t.lean)                     # the tableau as a LaTeX prooftree
-        d.sentence_tex(t.lean)            # the sentence in LaTeX
-        d.verify(t.lean)                  # a Lean proof that the tableau's verdict is right
+        t = d.tableau("□(□p → p) → □p")   # the tableau as a Lean file
+        d.closed(t)                       # whether it closed, so the sentence is a theorem of GL
+        d.tex(t)                          # the tableau as a LaTeX prooftree
+        d.sentence_tex(t)                 # the sentence in LaTeX
+        d.verify(t)                       # a Lean proof that the tableau's verdict is right
 
 A `Decider` runs the `tableau` server of the Lean project `gl-tableau`, found at `$GL_TABLEAU`
 or beside this checkout, and keeps it running: it starts by loading the Lean library, which
@@ -15,7 +16,6 @@ import json
 import os
 import subprocess
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 PROJECT = Path(os.environ.get("GL_TABLEAU", Path(__file__).parents[3] / "gl-tableau"))
@@ -25,14 +25,6 @@ PROOF = "\ntheorem proof : t.verdict := t.verified\n"
 
 class LeanError(Exception):
     """Lean rejected the source: the message is its errors."""
-
-
-@dataclass
-class Tableau:
-    theorem: bool
-    """Whether the tableau closed, so the sentence is a theorem of GL."""
-    lean: str
-    """The tableau as a Lean file, defining it as `t`."""
 
 
 class Decider:
@@ -64,11 +56,17 @@ class Decider:
 
     def tableau(self, sentence):
         """The tableau for `sentence`, with letters as sentence letters, `¬ □ ◇ ⊡` binding
-        tightest, then `∧`, `∨`, `→`, `↔`, each associating to the right."""
+        tightest, then `∧`, `∨`, `→`, `↔`, each associating to the right: a Lean file defining
+        it as `t`."""
         reply = self._ask(sentence=sentence)
         if "error" in reply:
             raise ValueError(reply["error"])
-        return Tableau(reply["closed"], reply["lean"])
+        return reply["lean"]
+
+    def closed(self, tableau):
+        """Whether the tableau of the Lean file `tableau` closed, so its sentence is a theorem
+        of GL."""
+        return self._run(tableau + "\n#eval IO.print t.tree.isClosed") == "true"
 
     def tex(self, tableau):
         """The tableau of the Lean file `tableau` as a `prooftree` of the LaTeX package
@@ -95,8 +93,8 @@ def main():
             match sys.argv[1:]:
                 case ["tableau", sentence]:
                     t = d.tableau(sentence)
-                    print(t.lean, end="")
-                    sys.exit(not t.theorem)
+                    print(t, end="")
+                    sys.exit(not d.closed(t))
                 case ["tex", file]:
                     print(d.tex(Path(file).read_text()), end="")
                 case ["verify", file]:

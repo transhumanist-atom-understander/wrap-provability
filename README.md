@@ -7,9 +7,11 @@ A Python wrapper of [`gl-tableau`](../gl-tableau): tableaux for sentences of GL
 from gltableau import Decider
 
 with Decider() as d:
-    t = d.tableau("□(□p → p) → □p")   # t.theorem is True; t.lean is the tableau as a Lean file
-    print(d.tex(t.lean))              # the tableau as a prooftree of the LaTeX package prooftrees
-    print(d.verify(t.lean))           # the Lean file with a proof of its verdict, checked by Lean
+    t = d.tableau("□(□p → p) → □p")   # the tableau as a Lean file
+    d.closed(t)                       # True: it closed, so the sentence is a theorem of GL
+    print(d.tex(t))                   # the tableau as a prooftree of the LaTeX package prooftrees
+    print(d.sentence_tex(t))          # the sentence in LaTeX
+    print(d.verify(t))                # the Lean file with a proof of its verdict, checked by Lean
 ```
 
 A `Decider` starts the `tableau` server of the Lean project and talks to it until the `with`

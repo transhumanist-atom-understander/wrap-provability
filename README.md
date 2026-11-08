@@ -20,17 +20,16 @@ with Verifier("/path/to/verify-provability") as v:
     print(v.verify(t))                # the Lean file with a proof of its verdict, checked by Lean
 ```
 
-A `Decider` starts the `tableau` server of the decider and talks to it until the `with` block
-ends; a `Verifier` does the same with the `verify` server of the verifier. A sentence letter
-is any run of characters other than whitespace, parentheses and the connectives, and `tex` and
-`sentence_tex` print its Greek letters and other such characters as LaTeX commands, `φ` as
-`\varphi`, with `pylatexenc`. Each is given the
-directory of a checkout of its Lean project, which it builds, with `lake build`, if it is not
-built: there is no default. The decider starts in a fraction of a second once built; the
-verifier takes a couple of seconds to load its Lean library, most of it Mathlib, so verify many
-tableaux in one `with`. `tableau` raises `ValueError` if the
-sentence doesn't parse, and `verify` raises `LeanError`, with Lean's messages, if Lean rejects
-the proof.
+A `Decider` runs the [Lean REPL](https://github.com/augustepoiroux/repl) in the decider's
+project, with its library imported, and talks to it until the `with` block ends; a `Verifier`
+does the same in the verifier's project. Each is given the directory of a checkout of its
+Lean project, which it builds, with `lake build`, if it is not built: there is no default. The
+decider's REPL starts in a second once built; the verifier's takes a couple of seconds to
+import its library, most of it Mathlib, so verify many tableaux in one `with`. A sentence
+letter is any run of characters other than whitespace, parentheses and the connectives, and
+`tex` and `sentence_tex` print its Greek letters and other such characters as LaTeX commands,
+`φ` as `\varphi`, with `pylatexenc`. `tableau` raises `ValueError` if the sentence doesn't
+parse, and `verify` raises `LeanError`, with Lean's messages, if Lean rejects the proof.
 
 The same functions are commands, which find the Lean projects at `$GL_DECIDER` and
 `$GL_VERIFIER` and fail if the one they need is not set:
@@ -46,6 +45,8 @@ Run them from this directory with `uv run gl-tableau ...`, from anywhere with
 
 ## Setup
 
-Check out the decider, and the verifier if you want to verify, and for the verifier fetch
-Mathlib's prebuilt artifacts as its README says: it is the one that needs Mathlib. `lake` is run
-in their directories, so it must be on the path, as elan installs it.
+Check out the decider, and the verifier if you want to verify: it is the one that needs
+Mathlib. Each requires the REPL as a Lake dependency, at the tag for its toolchain, so it is
+fetched and built with the project and nothing is fetched from Python;
+[`lean-interact`](https://github.com/augustepoiroux/LeanInteract) is pointed at that checkout.
+`lake` is run in the projects' directories, so it must be on the path, as elan installs it.

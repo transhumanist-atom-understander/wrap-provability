@@ -10,10 +10,9 @@
 
 `decider` and `verifier` are the directories of checkouts of the Lean projects
 `decide-provability` and `verify-provability`; there is no default, each must be given. A
-`Decider` runs the decider's server `tableau`, and a `Verifier` the verifier's `verify`, with
-`lake build` and then `lake exe` in that directory, and keeps it running: it starts by loading
-its Lean library, which for the verifier takes a couple of seconds, after which every request
-is fast.
+`Decider` or `Verifier` builds its project, with `lake build`, and runs the Lean REPL that the
+project requires in it, through `lean-interact`, with the project's library imported, which
+for the verifier takes a couple of seconds; after that every request is fast.
 """
 
 import json
@@ -23,6 +22,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from lean_interact import Command, LeanREPLConfig, LeanServer, LocalProject
+from lean_interact.interface import LeanError as REPLError
 from pylatexenc.latexencode import unicode_to_latex
 
 PROOF = "\ntheorem proof : t.verdict := t.verified\n"
@@ -32,49 +33,36 @@ class LeanError(Exception):
     """Lean rejected the source: the message is its errors."""
 
 
-class Server:
-    """A server of one of the Lean projects: `lake exe EXE` run in the project's directory,
-    after `lake build` there, so that the library it loads is built, and spoken to until the
-    `with` block ends."""
+class Server(LeanServer):
+    """The Lean REPL run in one of the Lean projects, after `lake build` there, with the
+    project's library, `module`, imported, and spoken to until the `with` block ends."""
 
-    exe: str
+    module: str
 
     def __init__(self, project):
-        self.project = Path(project)
-        if not (self.project / "lakefile.toml").is_file():
-            raise FileNotFoundError(f"no Lean project at {self.project}")
+        lean = LocalProject(directory=project, auto_build=False)
         try:
-            build = subprocess.run(["lake", "build"], cwd=self.project, text=True,
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        except FileNotFoundError:
-            raise FileNotFoundError("lake is not on the path: install Lean with elan") from None
-        if build.returncode:
-            raise LeanError(f"`lake build` in {self.project} failed:\n{build.stdout}")
-        self.lean = subprocess.Popen(["lake", "exe", self.exe], cwd=self.project, text=True,
-                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            lean.build(verbose=False)
+        except subprocess.CalledProcessError:
+            raise LeanError(f"`lake build` in {project} failed: run it there to see why") from None
+        super().__init__(LeanREPLConfig(project=lean, local_repl_path=Path(project, ".lake/packages/REPL")))
+        self.env = self._command(f"import {self.module}").env
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_):
-        self.lean.stdin.close()
-        self.lean.wait()
-
-    def _ask(self, **request):
-        self.lean.stdin.write(json.dumps(request) + "\n")
-        self.lean.stdin.flush()
-        reply = self.lean.stdout.readline()
-        if not reply:
-            raise LeanError(f"`lake exe {self.exe}` in {self.project} exited without answering")
-        return json.loads(reply)
+    def _command(self, source, **env):
+        """The REPL's reply to the Lean source `source`, elaborated in the environment `env`,
+        raising `LeanError` on Lean's errors."""
+        reply = self.run(Command(cmd=source, **env))
+        if isinstance(reply, REPLError):
+            raise LeanError(reply.message)
+        if errors := reply.get_errors():
+            raise LeanError("\n".join(m.data for m in errors))
+        return reply
 
     def _run(self, source):
-        """What the `#eval`s of the Lean file `source` print, its `import`s taken to be the
-        server's library."""
-        reply = self._ask(lean=source)
-        if reply["errors"]:
-            raise LeanError(reply["errors"])
-        return reply["output"]
+        """What the `#eval`s of the Lean file `source` print, its `import`s dropped in favour
+        of the library already imported."""
+        source = re.sub(r"\A(import [^\n]*\n)+", "", source)
+        return "".join(m.data for m in self._command(source, env=self.env).messages if m.severity == "info")
 
     def _tex(self, source):
         """`_run`, with the Greek letters and other such characters of what it prints as LaTeX
@@ -84,18 +72,18 @@ class Server:
 
 
 class Decider(Server):
-    """The server `tableau` of `decide-provability`, at `project`."""
+    """The REPL of `decide-provability`, at `project`, with `GLTableau` imported."""
 
-    exe = "tableau"
+    module = "GLTableau"
 
     def tableau(self, sentence):
         """The tableau for `sentence`, where a sentence letter is any run of characters other
         than whitespace, parentheses and the connectives, `¬ □ ◇ ⊡` bind tightest, then `∧`,
         `∨`, `→`, `↔`, each associating to the right: a Lean file defining it as `t`."""
-        reply = self._ask(sentence=sentence)
-        if "error" in reply:
-            raise ValueError(reply["error"])
-        return reply["lean"]
+        try:
+            return self._run(f"#eval Tableau.decide {json.dumps(sentence, ensure_ascii=False)}")
+        except LeanError as e:
+            raise ValueError(str(e)) from None
 
     def closed(self, tableau):
         """Whether the tableau of the Lean file `tableau` closed, so its sentence is a theorem
@@ -113,9 +101,9 @@ class Decider(Server):
 
 
 class Verifier(Server):
-    """The server `verify` of `verify-provability`, at `project`."""
+    """The REPL of `verify-provability`, at `project`, with `GLVerify` imported."""
 
-    exe = "verify"
+    module = "GLVerify"
 
     def verify(self, tableau):
         """The Lean file `tableau` with a proof of its verdict, that its sentence is or is not

@@ -22,9 +22,10 @@ with Verifier("/path/to/verify-provability") as v:
 
 A `Decider` starts the `tableau` server of the decider and talks to it until the `with` block
 ends; a `Verifier` does the same with the `verify` server of the verifier. Each is given the
-directory of a built checkout of its Lean project: there is no default. The decider starts in
-a fraction of a second; the verifier takes a couple of seconds to load its Lean library, most
-of it Mathlib, so verify many tableaux in one `with`. `tableau` raises `ValueError` if the
+directory of a checkout of its Lean project, which it builds, with `lake build`, if it is not
+built: there is no default. The decider starts in a fraction of a second once built; the
+verifier takes a couple of seconds to load its Lean library, most of it Mathlib, so verify many
+tableaux in one `with`. `tableau` raises `ValueError` if the
 sentence doesn't parse, and `verify` raises `LeanError`, with Lean's messages, if Lean rejects
 the proof.
 
@@ -42,6 +43,6 @@ Run them from this directory with `uv run gl-tableau ...`, from anywhere with
 
 ## Setup
 
-Build the decider, and the verifier if you want to verify, as their READMEs say; the verifier
-is the one that needs Mathlib. `lake exe` is run in their directories, so `lake` must be on the
-path, as elan installs it.
+Check out the decider, and the verifier if you want to verify, and for the verifier fetch
+Mathlib's prebuilt artifacts as its README says: it is the one that needs Mathlib. `lake` is run
+in their directories, so it must be on the path, as elan installs it.

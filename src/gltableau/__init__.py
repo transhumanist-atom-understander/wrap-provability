@@ -8,11 +8,12 @@
     with Verifier(verifier) as v:
         v.verify(t)                       # a Lean proof that the tableau's verdict is right
 
-`decider` and `verifier` are the directories of built checkouts of the Lean projects
+`decider` and `verifier` are the directories of checkouts of the Lean projects
 `decide-provability` and `verify-provability`; there is no default, each must be given. A
 `Decider` runs the decider's server `tableau`, and a `Verifier` the verifier's `verify`, with
-`lake exe` in that directory, and keeps it running: it starts by loading its Lean library,
-which for the verifier takes a couple of seconds, after which every request is fast.
+`lake build` and then `lake exe` in that directory, and keeps it running: it starts by loading
+its Lean library, which for the verifier takes a couple of seconds, after which every request
+is fast.
 """
 
 import json
@@ -29,8 +30,9 @@ class LeanError(Exception):
 
 
 class Server:
-    """A server of one of the Lean projects, `lake exe EXE` run in the project's directory,
-    which must hold a built checkout of it, and spoken to until the `with` block ends."""
+    """A server of one of the Lean projects: `lake exe EXE` run in the project's directory,
+    after `lake build` there, so that the library it loads is built, and spoken to until the
+    `with` block ends."""
 
     exe: str
 
@@ -39,10 +41,14 @@ class Server:
         if not (self.project / "lakefile.toml").is_file():
             raise FileNotFoundError(f"no Lean project at {self.project}")
         try:
-            self.lean = subprocess.Popen(["lake", "exe", self.exe], cwd=self.project, text=True,
-                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            build = subprocess.run(["lake", "build"], cwd=self.project, text=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         except FileNotFoundError:
             raise FileNotFoundError("lake is not on the path: install Lean with elan") from None
+        if build.returncode:
+            raise LeanError(f"`lake build` in {self.project} failed:\n{build.stdout}")
+        self.lean = subprocess.Popen(["lake", "exe", self.exe], cwd=self.project, text=True,
+                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
     def __enter__(self):
         return self
@@ -117,7 +123,7 @@ def project(variable):
     try:
         return os.environ[variable]
     except KeyError:
-        sys.exit(f"set {variable} to the directory of a built checkout of the Lean project")
+        sys.exit(f"set {variable} to the directory of a checkout of the Lean project")
 
 
 def main():

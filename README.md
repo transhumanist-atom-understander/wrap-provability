@@ -50,3 +50,12 @@ Mathlib. Each requires the REPL as a Lake dependency, at the tag for its toolcha
 fetched and built with the project and nothing is fetched from Python;
 [`lean-interact`](https://github.com/augustepoiroux/LeanInteract) is pointed at that checkout.
 `lake` is run in the projects' directories, so it must be on the path, as elan installs it.
+
+## Tests
+
+The tests are the project's, not the wrapper's alone: they have the decider build tableaux for
+theorems and non-theorems of GL and the verifier check them, so a sentence can be added without
+knowing its verdict. They find the Lean projects as the commands do, and skip what needs one
+that isn't set:
+
+    $ GL_DECIDER=/path/to/decide-provability GL_VERIFIER=/path/to/verify-provability uv run pytest

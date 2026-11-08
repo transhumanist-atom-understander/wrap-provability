@@ -18,9 +18,12 @@ is fast.
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
+
+from pylatexenc.latexencode import unicode_to_latex
 
 PROOF = "\ntheorem proof : t.verdict := t.verified\n"
 
@@ -73,6 +76,11 @@ class Server:
             raise LeanError(reply["errors"])
         return reply["output"]
 
+    def _tex(self, source):
+        """`_run`, with the Greek letters of what it prints as LaTeX commands, for math mode."""
+        tex = unicode_to_latex(self._run(source), non_ascii_only=True)
+        return re.sub(r"\\ensuremath\{(\\\w+)\}", r"\1", tex)
+
 
 class Decider(Server):
     """The server `tableau` of `decide-provability`, at `project`."""
@@ -80,9 +88,9 @@ class Decider(Server):
     exe = "tableau"
 
     def tableau(self, sentence):
-        """The tableau for `sentence`, with letters as sentence letters, `¬ □ ◇ ⊡` binding
-        tightest, then `∧`, `∨`, `→`, `↔`, each associating to the right: a Lean file defining
-        it as `t`."""
+        """The tableau for `sentence`, with words of Latin or Greek letters as sentence
+        letters, `¬ □ ◇ ⊡` binding tightest, then `∧`, `∨`, `→`, `↔`, each associating to the
+        right: a Lean file defining it as `t`."""
         reply = self._ask(sentence=sentence)
         if "error" in reply:
             raise ValueError(reply["error"])
@@ -96,11 +104,11 @@ class Decider(Server):
     def tex(self, tableau):
         """The tableau of the Lean file `tableau` as a `prooftree` of the LaTeX package
         `prooftrees`."""
-        return self._run(tableau + "\n#eval IO.print t.tex")
+        return self._tex(tableau + "\n#eval IO.print t.tex")
 
     def sentence_tex(self, tableau):
         """The sentence of the Lean file `tableau` in LaTeX, for math mode."""
-        return self._run(tableau + "\n#eval IO.print (t.sentence.render .tex)")
+        return self._tex(tableau + "\n#eval IO.print (t.sentence.render .tex)")
 
 
 class Verifier(Server):

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "GL tableaux, checked by Lean: a Python wrapper of decide-provability and verify-provability"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = ["pylatexenc>=2.10"]
 
 [project.scripts]
 gl-tableau = "gltableau:main"

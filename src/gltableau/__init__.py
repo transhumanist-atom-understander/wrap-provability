@@ -1,15 +1,18 @@
 """GL tableaux, checked by Lean.
 
-    with Decider() as d:
+    with Decider(decider) as d:
         t = d.tableau("□(□p → p) → □p")   # the tableau as a Lean file
         d.closed(t)                       # whether it closed, so the sentence is a theorem of GL
         d.tex(t)                          # the tableau as a LaTeX prooftree
         d.sentence_tex(t)                 # the sentence in LaTeX
-        d.verify(t)                       # a Lean proof that the tableau's verdict is right
+    with Verifier(verifier) as v:
+        v.verify(t)                       # a Lean proof that the tableau's verdict is right
 
-A `Decider` runs the `tableau` server of the Lean project `gl-tableau`, found at `$GL_TABLEAU`
-or beside this checkout, and keeps it running: it starts by loading the Lean library, which
-takes a couple of seconds, after which every request is fast.
+`decider` and `verifier` are the directories of built checkouts of the Lean projects
+`decide-provability` and `verify-provability`; there is no default, each must be given. A
+`Decider` runs the decider's server `tableau`, and a `Verifier` the verifier's `verify`, with
+`lake exe` in that directory, and keeps it running: it starts by loading its Lean library,
+which for the verifier takes a couple of seconds, after which every request is fast.
 """
 
 import json
@@ -18,8 +21,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-PROJECT = Path(os.environ.get("GL_TABLEAU", Path(__file__).parents[3] / "gl-tableau"))
-
 PROOF = "\ntheorem proof : t.verdict := t.verified\n"
 
 
@@ -27,12 +28,21 @@ class LeanError(Exception):
     """Lean rejected the source: the message is its errors."""
 
 
-class Decider:
-    def __init__(self, project=PROJECT):
-        if not Path(project, "lakefile.toml").is_file():
-            raise FileNotFoundError(f"no Lean project at {project}: set GL_TABLEAU to gl-tableau's directory")
-        self.lean = subprocess.Popen(["lake", "exe", "tableau"], cwd=project, text=True,
-                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+class Server:
+    """A server of one of the Lean projects, `lake exe EXE` run in the project's directory,
+    which must hold a built checkout of it, and spoken to until the `with` block ends."""
+
+    exe: str
+
+    def __init__(self, project):
+        self.project = Path(project)
+        if not (self.project / "lakefile.toml").is_file():
+            raise FileNotFoundError(f"no Lean project at {self.project}")
+        try:
+            self.lean = subprocess.Popen(["lake", "exe", self.exe], cwd=self.project, text=True,
+                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        except FileNotFoundError:
+            raise FileNotFoundError("lake is not on the path: install Lean with elan") from None
 
     def __enter__(self):
         return self
@@ -44,15 +54,24 @@ class Decider:
     def _ask(self, **request):
         self.lean.stdin.write(json.dumps(request) + "\n")
         self.lean.stdin.flush()
-        return json.loads(self.lean.stdout.readline())
+        reply = self.lean.stdout.readline()
+        if not reply:
+            raise LeanError(f"`lake exe {self.exe}` in {self.project} exited without answering")
+        return json.loads(reply)
 
     def _run(self, source):
-        """What the `#eval`s of the Lean file `source` print, its header taken to be
-        `import GLTableau`."""
+        """What the `#eval`s of the Lean file `source` print, its `import`s taken to be the
+        server's library."""
         reply = self._ask(lean=source)
         if reply["errors"]:
             raise LeanError(reply["errors"])
         return reply["output"]
+
+
+class Decider(Server):
+    """The server `tableau` of `decide-provability`, at `project`."""
+
+    exe = "tableau"
 
     def tableau(self, sentence):
         """The tableau for `sentence`, with letters as sentence letters, `¬ □ ◇ ⊡` binding
@@ -77,29 +96,50 @@ class Decider:
         """The sentence of the Lean file `tableau` in LaTeX, for math mode."""
         return self._run(tableau + "\n#eval IO.print (t.sentence.render .tex)")
 
+
+class Verifier(Server):
+    """The server `verify` of `verify-provability`, at `project`."""
+
+    exe = "verify"
+
     def verify(self, tableau):
         """The Lean file `tableau` with a proof of its verdict, that its sentence is or is not
-        in `LogicGL` of `ProvabilityLogic`, checked by Lean; raises `LeanError` if it fails."""
-        self._run(tableau + PROOF)
-        return tableau + PROOF
+        in `LogicGL` of `ProvabilityLogic`, checked by Lean; raises `LeanError` if it fails.
+        The file imports `GLVerify`, the verifier's library, so that it checks on its own in
+        that project too."""
+        source = tableau.replace("import GLTableau\n", "import GLVerify\n", 1) + PROOF
+        self._run(source)
+        return source
+
+
+def project(variable):
+    """The directory the environment variable names, or exit explaining it must."""
+    try:
+        return os.environ[variable]
+    except KeyError:
+        sys.exit(f"set {variable} to the directory of a built checkout of the Lean project")
 
 
 def main():
     """gl-tableau tableau SENTENCE  prints the tableau as a Lean file; exits 1 if it is open
     gl-tableau tex FILE           prints the tableau in the Lean file as a LaTeX prooftree
-    gl-tableau verify FILE        prints the Lean file with a proof of its verdict, checked"""
+    gl-tableau verify FILE        prints the Lean file with a proof of its verdict, checked
+
+    $GL_DECIDER is the directory of decide-provability, $GL_VERIFIER that of verify-provability."""
     try:
-        with Decider() as d:
-            match sys.argv[1:]:
-                case ["tableau", sentence]:
+        match sys.argv[1:]:
+            case ["tableau", sentence]:
+                with Decider(project("GL_DECIDER")) as d:
                     t = d.tableau(sentence)
                     print(t, end="")
                     sys.exit(not d.closed(t))
-                case ["tex", file]:
+            case ["tex", file]:
+                with Decider(project("GL_DECIDER")) as d:
                     print(d.tex(Path(file).read_text()), end="")
-                case ["verify", file]:
-                    print(d.verify(Path(file).read_text()), end="")
-                case _:
-                    sys.exit(main.__doc__)
+            case ["verify", file]:
+                with Verifier(project("GL_VERIFIER")) as v:
+                    print(v.verify(Path(file).read_text()), end="")
+            case _:
+                sys.exit(main.__doc__)
     except (ValueError, LeanError, FileNotFoundError) as e:
         sys.exit(str(e))

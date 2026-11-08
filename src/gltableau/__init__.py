@@ -34,8 +34,9 @@ class LeanError(Exception):
 
 
 class Server(LeanServer):
-    """The Lean REPL run in one of the Lean projects, after `lake build` there, with the
-    project's library, `module`, imported, and spoken to until the `with` block ends."""
+    """The Lean REPL run in one of the Lean projects, after `lake build` there, and spoken to
+    until the `with` block ends. Each request is a Lean file importing the project's library,
+    `module`, which the REPL loads once, at the start, and reuses."""
 
     module: str
 
@@ -46,23 +47,17 @@ class Server(LeanServer):
         except subprocess.CalledProcessError:
             raise LeanError(f"`lake build` in {project} failed: run it there to see why") from None
         super().__init__(LeanREPLConfig(project=lean, local_repl_path=Path(project, ".lake/packages/REPL")))
-        self.env = self._command(f"import {self.module}").env
+        self._run(f"import {self.module}")
 
-    def _command(self, source, **env):
-        """The REPL's reply to the Lean source `source`, elaborated in the environment `env`,
-        raising `LeanError` on Lean's errors."""
-        reply = self.run(Command(cmd=source, **env))
+    def _run(self, source):
+        """What the `#eval`s of the Lean file `source` print; raises `LeanError` with Lean's
+        errors."""
+        reply = self.run(Command(cmd=source))
         if isinstance(reply, REPLError):
             raise LeanError(reply.message)
         if errors := reply.get_errors():
             raise LeanError("\n".join(m.data for m in errors))
-        return reply
-
-    def _run(self, source):
-        """What the `#eval`s of the Lean file `source` print, its `import`s dropped in favour
-        of the library already imported."""
-        source = re.sub(r"\A(import [^\n]*\n)+", "", source)
-        return "".join(m.data for m in self._command(source, env=self.env).messages if m.severity == "info")
+        return "".join(m.data for m in reply.messages if m.severity == "info")
 
     def _tex(self, source):
         """`_run`, with the Greek letters and other such characters of what it prints as LaTeX
@@ -81,7 +76,7 @@ class Decider(Server):
         than whitespace, parentheses and the connectives, `¬ □ ◇ ⊡` bind tightest, then `∧`,
         `∨`, `→`, `↔`, each associating to the right: a Lean file defining it as `t`."""
         try:
-            return self._run(f"#eval Tableau.decide {json.dumps(sentence, ensure_ascii=False)}")
+            return self._run(f"import {self.module}\n#eval Tableau.decide {json.dumps(sentence, ensure_ascii=False)}")
         except LeanError as e:
             raise ValueError(str(e)) from None
 

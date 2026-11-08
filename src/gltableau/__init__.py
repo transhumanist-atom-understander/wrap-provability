@@ -77,9 +77,10 @@ class Server:
         return reply["output"]
 
     def _tex(self, source):
-        """`_run`, with the Greek letters of what it prints as LaTeX commands, for math mode."""
+        """`_run`, with the Greek letters and other such characters of what it prints as LaTeX
+        commands, for math mode."""
         tex = unicode_to_latex(self._run(source), non_ascii_only=True)
-        return re.sub(r"\\ensuremath\{(\\\w+)\}", r"\1", tex)
+        return re.sub(r"\\ensuremath\{([^{}]*)\}", r"\1", tex)
 
 
 class Decider(Server):
@@ -88,9 +89,9 @@ class Decider(Server):
     exe = "tableau"
 
     def tableau(self, sentence):
-        """The tableau for `sentence`, with words of Latin or Greek letters as sentence
-        letters, `¬ □ ◇ ⊡` binding tightest, then `∧`, `∨`, `→`, `↔`, each associating to the
-        right: a Lean file defining it as `t`."""
+        """The tableau for `sentence`, where a sentence letter is any run of characters other
+        than whitespace, parentheses and the connectives, `¬ □ ◇ ⊡` bind tightest, then `∧`,
+        `∨`, `→`, `↔`, each associating to the right: a Lean file defining it as `t`."""
         reply = self._ask(sentence=sentence)
         if "error" in reply:
             raise ValueError(reply["error"])

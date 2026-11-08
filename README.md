@@ -21,9 +21,10 @@ with Verifier("/path/to/verify-provability") as v:
 ```
 
 A `Decider` starts the `tableau` server of the decider and talks to it until the `with` block
-ends; a `Verifier` does the same with the `verify` server of the verifier. Sentence letters
-are words of Latin or Greek letters, and `tex` and `sentence_tex` print the Greek ones as
-LaTeX commands, `φ` as `\varphi`, with `pylatexenc`. Each is given the
+ends; a `Verifier` does the same with the `verify` server of the verifier. A sentence letter
+is any run of characters other than whitespace, parentheses and the connectives, and `tex` and
+`sentence_tex` print its Greek letters and other such characters as LaTeX commands, `φ` as
+`\varphi`, with `pylatexenc`. Each is given the
 directory of a checkout of its Lean project, which it builds, with `lake build`, if it is not
 built: there is no default. The decider starts in a fraction of a second once built; the
 verifier takes a couple of seconds to load its Lean library, most of it Mathlib, so verify many

@@ -2,3 +2,4 @@
 dist
 .python-version
 src/gltableau/__pycache__/
+uv.lock

@@ -1,14 +1,16 @@
-# gltableau
+# tableau
 
 A Python wrapper of
 [decide-provability](https://github.com/transhumanist-atom-understander/decide-provability)
 and
 [verify-provability](https://github.com/transhumanist-atom-understander/verify-provability):
-tableaux for sentences of GL (Gödel–Löb provability logic), and Lean's check of what they
-show, with `ProvabilityLogic`.
+tableaux for sentences of provability logics, and Lean's check of what they show, with
+`ProvabilityLogic`. There are two logics, each a module: `tableau.gl` is GL (Gödel–Löb
+provability logic), and `tableau.rminus` is R⁻, Guaspari and Solovay's GL with the witness
+comparisons `□A ≺ □B` and `□A ≼ □B` of Rosser sentences.
 
 ```python
-from gltableau import Decider, Verifier
+from tableau.gl import Decider, Verifier
 
 with Decider("/path/to/decide-provability") as d:
     t = d.tableau("□(□p → p) → □p")   # the tableau as a Lean file
@@ -20,24 +22,39 @@ with Verifier("/path/to/verify-provability") as v:
     print(v.verify(t))                # the Lean file with a proof of its verdict, checked by Lean
 ```
 
-A `Decider` runs the [Lean REPL](https://github.com/augustepoiroux/repl) in the decider's
-project, with its library imported, and talks to it until the `with` block ends; a `Verifier`
-does the same in the verifier's project. Each is given the directory of a checkout of its
-Lean project, which it builds, with `lake build`, if it is not built: there is no default. The
-decider's REPL starts in a second once built; the verifier's takes a couple of seconds to
-import its library, most of it Mathlib, so verify many tableaux in one `with`. A sentence
-letter is any run of characters other than whitespace, parentheses and the connectives, and
-`tex` and `sentence_tex` print its Greek letters and other such characters as LaTeX commands,
-`φ` as `\varphi`, with `pylatexenc`. `tableau` raises `ValueError` if the sentence doesn't
-parse, and `verify` raises `LeanError`, with Lean's messages, if Lean rejects the proof.
+```python
+from tableau.rminus import Decider
 
-The same functions are commands, which find the Lean projects at `$GL_DECIDER` and
-`$GL_VERIFIER` and fail if the one they need is not set:
+with Decider("/path/to/decide-provability") as d:
+    t = d.tableau("□(□⊤ ≺ □⊥)")       # the same, for R⁻
+    d.closed(t)                       # True: it is a theorem of R⁻, though □⊤ ≺ □⊥ is not
+```
+
+A `Decider` runs the [Lean REPL](https://github.com/augustepoiroux/repl) in the decider's
+project, with the library of its logic imported, and talks to it until the `with` block ends;
+a `Verifier` does the same in the verifier's project. Each is given the directory of a checkout
+of its Lean project, which it builds, with `lake build`, if it is not built: there is no
+default. Both deciders are given the same checkout. The decider's REPL starts in a second once
+built; the verifier's takes a couple of seconds to import its library, most of it Mathlib, so
+verify many tableaux in one `with`. A sentence letter is any run of characters other than
+whitespace, parentheses and the connectives, and `tex` and `sentence_tex` print its Greek
+letters and other such characters as LaTeX commands, `φ` as `\varphi`, with `pylatexenc`.
+`tableau` raises `ValueError` if the sentence doesn't parse, and `verify` raises `LeanError`,
+with Lean's messages, if Lean rejects the proof.
+
+In a sentence of R⁻, `≺` and `≼` bind tighter than `∧` and looser than `¬ □ ◇ ⊡`, and what they
+compare must be written as boxed formulas: `□p ≺ □q ∧ r` is `(□p ≺ □q) ∧ r`, and `¬□p ≺ □q`
+doesn't parse, but `¬(□p ≺ □q)` does. There is no verifier of R⁻ tableaux yet.
+
+The same functions are commands, one for each logic, which find the Lean projects at
+`$GL_DECIDER` and `$GL_VERIFIER` and fail if the one they need is not set:
 
     $ export GL_DECIDER=/path/to/decide-provability GL_VERIFIER=/path/to/verify-provability
     $ gl-tableau tableau '□(□p → p) → □p' > lob.lean    # exit status 1 if the tableau is open
     $ gl-tableau tex lob.lean > lob.tex
     $ gl-tableau verify lob.lean
+    $ rminus-tableau tableau '□(□⊤ ≺ □⊥)' > first.lean  # exit status 1 if the tableau is open
+    $ rminus-tableau tex first.lean > first.tex
 
 Run them from this directory with `uv run gl-tableau ...`, from anywhere with
 `uvx --from /path/to/wrap-provability gl-tableau ...`, or after
@@ -59,3 +76,9 @@ knowing its verdict. They find the Lean projects as the commands do, and skip wh
 that isn't set:
 
     $ GL_DECIDER=/path/to/decide-provability GL_VERIFIER=/path/to/verify-provability uv run pytest
+
+The tableaux for R⁻ have no verifier to check them. In its place, `tests/rminus_models.py`
+decides each sentence of `tests/test_rminus.py` again from Guaspari and Solovay's models of
+R⁻, by brute force, and the tests have the two agree; they also have the R⁻ decider agree with
+GL's on the sentences of GL. The search is exponential in the number of boxed subformulas, so
+it is for small sentences.

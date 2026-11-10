@@ -1,13 +1,14 @@
 [project]
-name = "gltableau"
+name = "tableau"
 version = "0.1.0"
-description = "GL tableaux, checked by Lean: a Python wrapper of decide-provability and verify-provability"
+description = "Tableaux for provability logics, built and checked by Lean: a Python wrapper of decide-provability and verify-provability"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = ["lean-interact>=0.11", "pylatexenc>=2.10"]
 
 [project.scripts]
-gl-tableau = "gltableau:main"
+gl-tableau = "tableau.gl:main"
+rminus-tableau = "tableau.rminus:main"
 
 [build-system]
 requires = ["uv_build"]

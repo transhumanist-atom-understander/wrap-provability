@@ -9,7 +9,7 @@ irreflexive frames.
 
 import pytest
 
-from gltableau import LeanError
+from tableau import LeanError
 
 THEOREMS = [
     # Löb's axiom and what comes with it

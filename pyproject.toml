@@ -8,6 +8,7 @@ dependencies = ["lean-interact>=0.11", "pylatexenc>=2.10"]
 
 [project.scripts]
 gl-tableau = "gltableau:main"
+witness-tableau = "gltableau:witness"
 
 [build-system]
 requires = ["uv_build"]

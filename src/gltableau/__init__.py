@@ -7,6 +7,9 @@
         d.sentence_tex(t)                 # the sentence in LaTeX
     with Verifier(verifier) as v:
         v.verify(t)                       # a Lean proof that the tableau's verdict is right
+    with WitnessDecider(decider) as d:
+        t = d.tableau("□(□⊤ ≺ □⊥)")       # the same, with witness comparisons
+        d.closed(t)                       # whether it closed, so the sentence is a theorem of R⁻
 
 `decider` and `verifier` are the directories of checkouts of the Lean projects
 `decide-provability` and `verify-provability`; there is no default, each must be given. A
@@ -70,13 +73,14 @@ class Decider(Server):
     """The REPL of `decide-provability`, at `project`, with `GLTableau` imported."""
 
     module = "GLTableau"
+    namespace = "Tableau"
 
     def tableau(self, sentence):
         """The tableau for `sentence`, where a sentence letter is any run of characters other
         than whitespace, parentheses and the connectives, `¬ □ ◇ ⊡` bind tightest, then `∧`,
         `∨`, `→`, `↔`, each associating to the right: a Lean file defining it as `t`."""
         try:
-            return self._run(f"import {self.module}\n#eval Tableau.decide {json.dumps(sentence, ensure_ascii=False)}")
+            return self._run(f"import {self.module}\n#eval {self.namespace}.decide {json.dumps(sentence, ensure_ascii=False)}")
         except LeanError as e:
             raise ValueError(str(e)) from None
 
@@ -93,6 +97,17 @@ class Decider(Server):
     def sentence_tex(self, tableau):
         """The sentence of the Lean file `tableau` in LaTeX, for math mode."""
         return self._tex(tableau + "\n#eval IO.print (t.sentence.render .tex)")
+
+
+class WitnessDecider(Decider):
+    """The REPL of `decide-provability`, at `project`, with `WitnessTableau` imported: tableaux
+    for sentences with the witness comparisons `□A ≺ □B` and `□A ≼ □B` of Guaspari and Solovay's
+    R⁻, which bind tighter than `∧` and looser than `¬ □ ◇ ⊡`. A tableau that closes shows a
+    theorem of R⁻; one that doesn't shows only that persistence and true before false, the
+    rules it has for comparisons, are not enough."""
+
+    module = "WitnessTableau"
+    namespace = "Witness.Tableau"
 
 
 class Verifier(Server):
@@ -124,20 +139,34 @@ def main():
     gl-tableau verify FILE        prints the Lean file with a proof of its verdict, checked
 
     $GL_DECIDER is the directory of decide-provability, $GL_VERIFIER that of verify-provability."""
+    run(Decider, main.__doc__)
+
+
+def witness():
+    """witness-tableau tableau SENTENCE  prints the tableau as a Lean file; exits 1 if it is open
+    witness-tableau tex FILE           prints the tableau in the Lean file as a LaTeX prooftree
+
+    $GL_DECIDER is the directory of decide-provability."""
+    run(WitnessDecider, witness.__doc__)
+
+
+def run(decider, usage):
+    """The command of `decider`, whose arguments are as `usage` says. Only GL's tableaux have a
+    verifier."""
     try:
         match sys.argv[1:]:
             case ["tableau", sentence]:
-                with Decider(project("GL_DECIDER")) as d:
+                with decider(project("GL_DECIDER")) as d:
                     t = d.tableau(sentence)
                     print(t, end="")
                     sys.exit(not d.closed(t))
             case ["tex", file]:
-                with Decider(project("GL_DECIDER")) as d:
+                with decider(project("GL_DECIDER")) as d:
                     print(d.tex(Path(file).read_text()), end="")
-            case ["verify", file]:
+            case ["verify", file] if decider is Decider:
                 with Verifier(project("GL_VERIFIER")) as v:
                     print(v.verify(Path(file).read_text()), end="")
             case _:
-                sys.exit(main.__doc__)
+                sys.exit(usage)
     except (ValueError, LeanError, FileNotFoundError) as e:
         sys.exit(str(e))

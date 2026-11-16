@@ -239,8 +239,8 @@ def test_claim(tableau):
     assert "does not follow from persistence and true before false" in tableau("□⊤ ≺ □⊥")
 
 
-def test_model_tex(tableau, decider):
-    tex = decider.model_tex(tableau("□p ≺ □q → ¬(□q ≺ □p)"))
+def test_models_tex(tableau, decider):
+    [tex] = decider.models_tex(tableau("□p ≺ □q → ¬(□q ≺ □p)"))
     # the comparisons are named where the worlds are, and spelled out below them
     assert r"{$\,\Vdash c_{1}, c_{2}$}" in tex
     assert r"{$c_{1} = \Box p \prec \Box q$}" in tex and r"{$c_{2} = \Box q \prec \Box p$}" in tex

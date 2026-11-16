@@ -103,15 +103,18 @@ def test_claim(tableau):
     assert "□p → p is not a theorem of GL" in tableau("□p → p")
 
 
-def test_model_tex(tableau, decider):
-    assert decider.model_tex(tableau("□(□p → p) → □p")) is None
-    assert decider.model_tex(tableau("□φ → φ")) == r"""\begin{tikzpicture}[>=stealth]
+def test_models_tex(tableau, decider):
+    assert decider.models_tex(tableau("□(□p → p) → □p")) == []
+    assert decider.models_tex(tableau("□φ → φ")) == [r"""\begin{tikzpicture}[>=stealth]
   \node[inner sep=2pt] (w0) at (0mm,0mm) {$w_{0}$};
   \node[anchor=west, inner sep=0pt] at (w0.east) {$\,\Vdash \lnot \varphi$};
-\end{tikzpicture}"""
+\end{tikzpicture}"""]
+    # an open branch for each way that p ∨ q → p ∧ q fails
+    assert [m.splitlines()[2].split("Vdash ")[1] for m in decider.models_tex(tableau("p ∨ q → p ∧ q"))] == [
+        r"p, \lnot q$};", r"q, \lnot p$};"]
     # two worlds started from the first, and one from the second of them: a tree, without the
     # arrow that transitivity adds
-    tex = decider.model_tex(tableau("((□□Π ∧ ¬□Π) → Π) ∧ (Π → □Π) → □Π"))
+    [tex] = decider.models_tex(tableau("((□□Π ∧ ¬□Π) → Π) ∧ (Π → □Π) → □Π"))
     arrows = [line.strip() for line in tex.splitlines() if "draw" in line]
     assert arrows == [r"\draw[->] (w0.south) -- (w1.north);", r"\draw[->] (w0.south) -- (w2.north);", r"\draw[->] (w2.south) -- (w3.north);"]
     assert tex.count(r"\Vdash \lnot \Pi$") == 3 and "(w2.east)" not in tex

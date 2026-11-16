@@ -5,6 +5,7 @@
         d.closed(t)                              # whether it closed, so the sentence is a theorem of R⁻
         d.tex(t)                                 # the tableau as a LaTeX prooftree
         d.sentence_tex(t)                        # the sentence in LaTeX
+        d.model_tex(d.tableau("□p → p"))         # the model of an open branch as a LaTeX tikzpicture
 
 The sentences are those of Guaspari and Solovay's R⁻: GL's, with the witness comparisons
 `□A ≺ □B` and `□A ≼ □B`. The rules for comparisons are not all of R⁻ yet, so a tableau that
@@ -86,3 +87,14 @@ class Decider(LeanServer):
     def sentence_tex(self, tableau):
         """The sentence of the Lean file `tableau` in LaTeX, for math mode."""
         return self._tex(tableau + "\n#eval IO.print (t.sentence.render .tex)")
+
+    def model_tex(self, tableau):
+        """The model that the first open branch of the tableau of the Lean file `tableau`
+        describes, as a `tikzpicture` of the LaTeX package `tikz`, which also needs `amssymb`;
+        `None` if the tableau closed. The worlds are drawn as a tree, with an arrow from each
+        to the worlds started from it, and stand for the transitive order that generates; by
+        each is what the branch says there of the sentence letters and the comparisons. Of a
+        sentence with no comparison it is a countermodel, however the letters that a world says
+        nothing of are valued there; of one with comparisons it is a model of the rules there
+        are for them, and not always one of R⁻."""
+        return self._tex(tableau + '\n#eval IO.print (t.modelTex.getD "")') or None

@@ -237,3 +237,8 @@ def test_claim(tableau):
     its rules were not enough."""
     assert "□(□¬⊥ ≺ □⊥) is a theorem of R⁻" in tableau("□(□⊤ ≺ □⊥)")
     assert "does not follow from persistence and true before false" in tableau("□⊤ ≺ □⊥")
+
+
+def test_model_tex(tableau, decider):
+    tex = decider.model_tex(tableau("□p ≺ □q → ¬(□q ≺ □p)"))
+    assert r"{$\,\Vdash \Box p \prec \Box q, \Box q \prec \Box p$}" in tex

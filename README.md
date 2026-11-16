@@ -15,6 +15,25 @@ with Decider("/path/to/decide-provability") as d:
     print(d.sentence_tex(t))                 # the sentence in LaTeX
 ```
 
+A tableau that doesn't close has an open branch, and `model_tex` draws the model it describes:
+
+```python
+    print(d.model_tex(d.tableau("□p → p")))  # a LaTeX tikzpicture; None if the tableau closed
+```
+
+    \begin{tikzpicture}[>=stealth]
+      \node[inner sep=2pt] (w0) at (0mm,0mm) {$w_{0}$};
+      \node[anchor=west, inner sep=0pt] at (w0.east) {$\,\Vdash \lnot p$};
+    \end{tikzpicture}
+
+It can be pasted into the body of a document that has `\usepackage{tikz}` and
+`\usepackage{amssymb}`, as the `prooftree` of `tex` can into one with `\usepackage{prooftrees}`.
+The worlds are drawn as a tree, an arrow from each to the worlds started from it, and stand for
+the transitive order that generates. By each world is what the branch says there of the
+sentence letters and the comparisons; a letter it says nothing of can be valued either way. Of
+a sentence of GL this is a countermodel. Of a sentence with comparisons it is a model of the
+rules there are for them, and not always one of R⁻.
+
 The rules for comparisons are not all of R⁻ yet. They are the persistence of a comparison and
 that true comes before false, `(□A ∧ ¬□B) → □A ≺ □B`, as
 [the decider's README](https://github.com/transhumanist-atom-understander/decide-provability#witness-comparisons)

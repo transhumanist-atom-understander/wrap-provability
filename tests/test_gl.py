@@ -101,3 +101,17 @@ def test_claim(tableau):
     """A tableau for a sentence of GL claims that it is a theorem of GL, or that it is not."""
     assert "□(□p → p) → □p is a theorem of GL" in tableau("□(□p → p) → □p")
     assert "□p → p is not a theorem of GL" in tableau("□p → p")
+
+
+def test_model_tex(tableau, decider):
+    assert decider.model_tex(tableau("□(□p → p) → □p")) is None
+    assert decider.model_tex(tableau("□φ → φ")) == r"""\begin{tikzpicture}[>=stealth]
+  \node[inner sep=2pt] (w0) at (0mm,0mm) {$w_{0}$};
+  \node[anchor=west, inner sep=0pt] at (w0.east) {$\,\Vdash \lnot \varphi$};
+\end{tikzpicture}"""
+    # two worlds started from the first, and one from the second of them: a tree, without the
+    # arrow that transitivity adds
+    tex = decider.model_tex(tableau("((□□Π ∧ ¬□Π) → Π) ∧ (Π → □Π) → □Π"))
+    arrows = [line.strip() for line in tex.splitlines() if "draw" in line]
+    assert arrows == [r"\draw[->] (w0) -- (w1);", r"\draw[->] (w0) -- (w2);", r"\draw[->] (w2) -- (w3);"]
+    assert tex.count(r"\Vdash \lnot \Pi$") == 3 and "(w2.east)" not in tex

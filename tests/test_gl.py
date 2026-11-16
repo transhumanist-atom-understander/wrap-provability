@@ -113,5 +113,5 @@ def test_model_tex(tableau, decider):
     # arrow that transitivity adds
     tex = decider.model_tex(tableau("((□□Π ∧ ¬□Π) → Π) ∧ (Π → □Π) → □Π"))
     arrows = [line.strip() for line in tex.splitlines() if "draw" in line]
-    assert arrows == [r"\draw[->] (w0) -- (w1);", r"\draw[->] (w0) -- (w2);", r"\draw[->] (w2) -- (w3);"]
+    assert arrows == [r"\draw[->] (w0.south) -- (w1.north);", r"\draw[->] (w0.south) -- (w2.north);", r"\draw[->] (w2.south) -- (w3.north);"]
     assert tex.count(r"\Vdash \lnot \Pi$") == 3 and "(w2.east)" not in tex

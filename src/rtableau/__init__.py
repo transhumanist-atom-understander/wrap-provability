@@ -1,13 +1,15 @@
-"""GL tableaux, built by Lean.
+"""Witness comparison tableaux, built by Lean.
 
     with Decider(decider) as d:
-        t = d.tableau("□(□p → p) → □p")   # the tableau as a Lean file
-        d.closed(t)                       # whether it closed, so the sentence is a theorem of GL
-        d.tex(t)                          # the tableau as a LaTeX prooftree
-        d.sentence_tex(t)                 # the sentence in LaTeX
-    with WitnessDecider(decider) as d:
-        t = d.tableau("□(□⊤ ≺ □⊥)")       # the same, with witness comparisons
-        d.closed(t)                       # whether it closed, so the sentence is a theorem of R⁻
+        t = d.tableau("⊡(Π ↔ □□Π ≺ □Π) → □Π")   # the tableau as a Lean file
+        d.closed(t)                              # whether it closed, so the sentence is a theorem of R⁻
+        d.tex(t)                                 # the tableau as a LaTeX prooftree
+        d.sentence_tex(t)                        # the sentence in LaTeX
+
+The sentences are those of Guaspari and Solovay's R⁻: GL's, with the witness comparisons
+`□A ≺ □B` and `□A ≼ □B`. The rules for comparisons are not all of R⁻ yet, so a tableau that
+closes shows a theorem of R⁻ but one that doesn't shows a non-theorem only if its sentence has
+no comparison: for a sentence of GL the tableau is GL's, and decides it.
 
 `decider` is the directory of a checkout of the Lean project `decide-provability`; there is no
 default, it must be given. A `Decider` builds the project, with `lake build`, and runs the Lean
@@ -16,10 +18,8 @@ imported; after that every request is fast.
 """
 
 import json
-import os
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 from lean_interact import Command, LeanREPLConfig, LeanServer, LocalProject
@@ -31,12 +31,10 @@ class LeanError(Exception):
     """Lean rejected the source: the message is its errors."""
 
 
-class Server(LeanServer):
-    """The Lean REPL run in a Lean project, after `lake build` there, and spoken to until the
-    `with` block ends. Each request is a Lean file importing the project's library, `module`,
-    which the REPL loads once, at the start, and reuses."""
-
-    module: str
+class Decider(LeanServer):
+    """The Lean REPL run in `decide-provability`, at `project`, after `lake build` there, and
+    spoken to until the `with` block ends. Each request is a Lean file importing the project's
+    library, `RTableau`, which the REPL loads once, at the start, and reuses."""
 
     def __init__(self, project):
         lean = LocalProject(directory=project, auto_build=False)
@@ -45,7 +43,7 @@ class Server(LeanServer):
         except subprocess.CalledProcessError:
             raise LeanError(f"`lake build` in {project} failed: run it there to see why") from None
         super().__init__(LeanREPLConfig(project=lean, local_repl_path=Path(project, ".lake/packages/REPL")))
-        self._run(f"import {self.module}")
+        self._run("import RTableau")
 
     def _run(self, source):
         """What the `#eval`s of the Lean file `source` print; raises `LeanError` with Lean's
@@ -63,25 +61,21 @@ class Server(LeanServer):
         tex = unicode_to_latex(self._run(source), non_ascii_only=True)
         return re.sub(r"\\ensuremath\{([^{}]*)\}", r"\1", tex)
 
-
-class Decider(Server):
-    """The REPL of `decide-provability`, at `project`, with `GLTableau` imported."""
-
-    module = "GLTableau"
-    namespace = "Tableau"
-
     def tableau(self, sentence):
         """The tableau for `sentence`, where a sentence letter is any run of characters other
-        than whitespace, parentheses and the connectives, `¬ □ ◇ ⊡` bind tightest, then `∧`,
-        `∨`, `→`, `↔`, each associating to the right: a Lean file defining it as `t`."""
+        than whitespace, parentheses and the connectives, `¬ □ ◇ ⊡` bind tightest, then `≺` and
+        `≼`, which compare boxed formulas, then `∧`, `∨`, `→`, `↔`, each associating to the
+        right: a Lean file defining it as `t`."""
         try:
-            return self._run(f"import {self.module}\n#eval {self.namespace}.decide {json.dumps(sentence, ensure_ascii=False)}")
+            return self._run(f"import RTableau\n#eval Tableau.decide {json.dumps(sentence, ensure_ascii=False)}")
         except LeanError as e:
             raise ValueError(str(e)) from None
 
     def closed(self, tableau):
         """Whether the tableau of the Lean file `tableau` closed, so its sentence is a theorem
-        of GL."""
+        of R⁻, and of GL if it has no comparison. If it didn't, a sentence with no comparison is
+        not a theorem; of one with comparisons it only shows that persistence and true before
+        false, the rules there are for them, are not enough."""
         return self._run(tableau + "\n#eval IO.print t.tree.isClosed") == "true"
 
     def tex(self, tableau):
@@ -92,56 +86,3 @@ class Decider(Server):
     def sentence_tex(self, tableau):
         """The sentence of the Lean file `tableau` in LaTeX, for math mode."""
         return self._tex(tableau + "\n#eval IO.print (t.sentence.render .tex)")
-
-
-class WitnessDecider(Decider):
-    """The REPL of `decide-provability`, at `project`, with `WitnessTableau` imported: tableaux
-    for sentences with the witness comparisons `□A ≺ □B` and `□A ≼ □B` of Guaspari and Solovay's
-    R⁻, which bind tighter than `∧` and looser than `¬ □ ◇ ⊡`. A tableau that closes shows a
-    theorem of R⁻; one that doesn't shows only that persistence and true before false, the
-    rules it has for comparisons, are not enough."""
-
-    module = "WitnessTableau"
-    namespace = "Witness.Tableau"
-
-
-def project(variable):
-    """The directory the environment variable names, or exit explaining it must."""
-    try:
-        return os.environ[variable]
-    except KeyError:
-        sys.exit(f"set {variable} to the directory of a checkout of the Lean project")
-
-
-def main():
-    """gl-tableau tableau SENTENCE  prints the tableau as a Lean file; exits 1 if it is open
-    gl-tableau tex FILE           prints the tableau in the Lean file as a LaTeX prooftree
-
-    $GL_DECIDER is the directory of decide-provability."""
-    run(Decider, main.__doc__)
-
-
-def witness():
-    """witness-tableau tableau SENTENCE  prints the tableau as a Lean file; exits 1 if it is open
-    witness-tableau tex FILE           prints the tableau in the Lean file as a LaTeX prooftree
-
-    $GL_DECIDER is the directory of decide-provability."""
-    run(WitnessDecider, witness.__doc__)
-
-
-def run(decider, usage):
-    """The command of `decider`, whose arguments are as `usage` says."""
-    try:
-        match sys.argv[1:]:
-            case ["tableau", sentence]:
-                with decider(project("GL_DECIDER")) as d:
-                    t = d.tableau(sentence)
-                    print(t, end="")
-                    sys.exit(not d.closed(t))
-            case ["tex", file]:
-                with decider(project("GL_DECIDER")) as d:
-                    print(d.tex(Path(file).read_text()), end="")
-            case _:
-                sys.exit(usage)
-    except (ValueError, LeanError, FileNotFoundError) as e:
-        sys.exit(str(e))

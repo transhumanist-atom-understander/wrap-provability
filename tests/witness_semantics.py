@@ -1,5 +1,5 @@
-"""Two checks of the witness decider that need nothing from it but its sentence, in place of
-the verifier that only GL's tableaux have.
+"""Two checks of the decider's tableaux for sentences with witness comparisons, that need
+nothing from it but its sentence.
 
 `theorem` decides a sentence from Guaspari and Solovay's models of R⁻, by brute force: what a
 tableau that closes must agree with.
@@ -7,8 +7,8 @@ tableau that closes must agree with.
 `reduction` is the sentence of GL that says a sentence follows from the axioms that the
 decider's rules replace, with each comparison a sentence letter: Guaspari and Solovay's
 reduction of R⁻ to GL (Rosser sentences, 1979, 3.1), with those order axioms only. It is how a
-tableau is drawn by hand, with the axioms as premises, and GL's decider decides it: what any
-tableau of the witness decider must agree with.
+tableau is drawn by hand, with the axioms as premises, and the decider decides it, as it does
+any sentence of GL: what its tableau for the sentence itself must agree with.
 """
 
 import functools
@@ -147,16 +147,19 @@ def axioms(c):
 
 
 def reduction(A):
-    """The sentence of GL, as the deciders read one, that says `A` follows from `axioms`, at
+    """The sentence of GL, as the decider reads one, that says `A` follows from `axioms`, at
     the world where it is evaluated and at the worlds that one sees, for each comparison in
-    `A`. A comparison is the sentence letter `≺0`, `≺1`, ..., which no sentence letter of `A`
-    can be."""
+    `A`. A comparison is the sentence letter `c0`, `c1`, ..., with as many `c`s as it takes for
+    it to be no sentence letter of `A`."""
     comparisons = sorted((B for B in subformulas(A) if B[0] in ("prec", "preceq")), key=repr)
-    letter = {c: ("atom", f"≺{n}") for n, c in enumerate(comparisons)}
+    c = "c"
+    while any(B[0] == "atom" and B[1].startswith(c) for B in subformulas(A)):
+        c += "c"
+    letter = {comparison: f"{c}{n}" for n, comparison in enumerate(comparisons)}
 
     def spell(B):
         if B in letter:
-            return letter[B][1]
+            return letter[B]
         match B:
             case ("atom", p):
                 return p
@@ -172,5 +175,5 @@ def reduction(A):
                 symbol = {"and": "∧", "or": "∨", "imp": "→", "iff": "↔"}[connective]
                 return f"({spell(C)} {symbol} {spell(D)})"
 
-    premises = [f"⊡{spell(X)}" for c in comparisons for X in axioms(c)]
+    premises = [f"⊡{spell(X)}" for comparison in comparisons for X in axioms(comparison)]
     return " → ".join([*premises, spell(A)])

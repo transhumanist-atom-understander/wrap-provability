@@ -1,5 +1,6 @@
-"""The decider's verdicts on sentences of GL whose verdict is well known or follows from GL's
-semantics on finite transitive irreflexive frames."""
+"""The decider's verdicts on sentences of GL, those with no witness comparison, whose verdict is
+well known or follows from GL's semantics on finite transitive irreflexive frames. For these the
+tableau is GL's, and decides the sentence."""
 
 import pytest
 
@@ -94,3 +95,9 @@ def test_tex(tableau, decider):
     assert decider.sentence_tex(t) == r"\Box (\Box \varphi \to \varphi) \to \Box \varphi"
     tex = decider.tex(t)
     assert tex.startswith(r"\begin{prooftree}") and r"[{\lnot \Box \varphi, 0}" in tex
+
+
+def test_claim(tableau):
+    """A tableau for a sentence of GL claims that it is a theorem of GL, or that it is not."""
+    assert "□(□p → p) → □p is a theorem of GL" in tableau("□(□p → p) → □p")
+    assert "□p → p is not a theorem of GL" in tableau("□p → p")

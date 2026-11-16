@@ -1,38 +1,36 @@
-# gltableau
+# rtableau
 
 A Python wrapper of
 [decide-provability](https://github.com/transhumanist-atom-understander/decide-provability):
-tableaux for sentences of GL (Gödel–Löb provability logic).
+tableaux for sentences with witness comparisons, those of Guaspari and Solovay's R⁻, the logic
+of Rosser sentences, which is GL (Gödel–Löb provability logic) with `□A ≺ □B` and `□A ≼ □B`.
 
 ```python
-from gltableau import Decider
+from rtableau import Decider
 
 with Decider("/path/to/decide-provability") as d:
-    t = d.tableau("□(□p → p) → □p")   # the tableau as a Lean file
-    d.closed(t)                       # True: it closed, so the sentence is a theorem of GL
-    print(d.tex(t))                   # the tableau as a prooftree of the LaTeX package prooftrees
-    print(d.sentence_tex(t))          # the sentence in LaTeX
-```
-
-`WitnessDecider` is a `Decider` for sentences that also have the witness comparisons `□A ≺ □B`
-and `□A ≼ □B` of Guaspari and Solovay's R⁻, the logic of Rosser sentences:
-
-```python
-from gltableau import WitnessDecider
-
-with WitnessDecider("/path/to/decide-provability") as d:
-    t = d.tableau("⊡(Π ↔ □□Π ≺ □Π) → □Π")   # the Parikh sentence is provably provable
+    t = d.tableau("⊡(Π ↔ □□Π ≺ □Π) → □Π")   # the tableau as a Lean file: the Parikh sentence is provably provable
     d.closed(t)                              # True: it closed, so the sentence is a theorem of R⁻
-    print(d.tex(t))
+    print(d.tex(t))                          # the tableau as a prooftree of the LaTeX package prooftrees
+    print(d.sentence_tex(t))                 # the sentence in LaTeX
 ```
 
-Its rules for comparisons are their persistence and that true comes before false,
-`(□A ∧ ¬□B) → □A ≺ □B`, as
+The rules for comparisons are not all of R⁻ yet. They are the persistence of a comparison and
+that true comes before false, `(□A ∧ ¬□B) → □A ≺ □B`, as
 [the decider's README](https://github.com/transhumanist-atom-understander/decide-provability#witness-comparisons)
 sets out, in place of those axioms as premises. So a tableau that closes shows a theorem of R⁻,
 but one that doesn't shows only that those rules are not enough: they say nothing of the order
-of boxed formulas that come to hold together, so `□p ≺ □q → ¬(□q ≺ □p)` is not proved. No
-verifier checks these tableaux.
+of boxed formulas that come to hold together, so `□p ≺ □q → ¬(□q ≺ □p)` is not proved. A
+sentence of GL, one with no comparison, is the special case that is decided: its tableau is
+GL's, and closes if the sentence is a theorem of GL and doesn't if it is not.
+
+```python
+with Decider("/path/to/decide-provability") as d:
+    d.closed(d.tableau("□(□p → p) → □p"))   # True: a theorem of GL
+    d.closed(d.tableau("□p → p"))           # False: not a theorem of GL
+```
+
+The Lean file says, above its tableau, which of these it shows.
 
 A `Decider` runs the [Lean REPL](https://github.com/augustepoiroux/repl) in the decider's
 project, with its library imported, and talks to it until the `with` block ends. It is given
@@ -40,21 +38,10 @@ the directory of a checkout of that Lean project, which it builds, with `lake bu
 not built: there is no default. The REPL starts in a second once built. A sentence letter is
 any run of characters other than whitespace, parentheses and the connectives, and `tex` and
 `sentence_tex` print its Greek letters and other such characters as LaTeX commands, `φ` as
-`\varphi`, with `pylatexenc`. `tableau` raises `ValueError` if the sentence doesn't parse. In a
-sentence with comparisons, `≺` and `≼` bind tighter than `∧` and looser than `¬ □ ◇ ⊡`, and what
-they compare must be written as boxed formulas: `□p ≺ □q ∧ r` is `(□p ≺ □q) ∧ r`, and
-`¬□p ≺ □q` doesn't parse, but `¬(□p ≺ □q)` does.
-
-The same functions are commands, which find the Lean project at `$GL_DECIDER` and fail if it is
-not set:
-
-    $ export GL_DECIDER=/path/to/decide-provability
-    $ gl-tableau tableau '□(□p → p) → □p' > lob.lean    # exit status 1 if the tableau is open
-    $ gl-tableau tex lob.lean > lob.tex
-
-Run them from this directory with `uv run gl-tableau ...`, from anywhere with
-`uvx --from /path/to/wrap-provability gl-tableau ...`, or after
-`uv tool install /path/to/wrap-provability` just as `gl-tableau ...`.
+`\varphi`, with `pylatexenc`. `¬ □ ◇ ⊡` bind tightest, then `≺` and `≼`, then `∧`, `∨`, `→`,
+`↔`, and what `≺` and `≼` compare must be written as boxed formulas: `□p ≺ □q ∧ r` is
+`(□p ≺ □q) ∧ r`, and `¬□p ≺ □q` doesn't parse, but `¬(□p ≺ □q)` does. `tableau` raises
+`ValueError` if the sentence doesn't parse.
 
 ## Setup
 
@@ -65,17 +52,19 @@ so it is fetched and built with the project and nothing is fetched from Python;
 
 ## Tests
 
-The tests are the project's, not the wrapper's alone: they have the decider build tableaux for
-theorems and non-theorems of GL and check that each closes or doesn't, so a sentence is added
-with its verdict. They find the Lean project as the commands do, and are skipped if it isn't
-set:
+The tests are the project's, not the wrapper's alone. They find the Lean project at
+`$DECIDE_PROVABILITY`, and are skipped if it isn't set:
 
-    $ GL_DECIDER=/path/to/decide-provability uv run pytest
+    $ DECIDE_PROVABILITY=/path/to/decide-provability uv run pytest
 
-The tableaux with witness comparisons have no verifier, so `tests/test_witness.py` checks them
-in two other ways, with `tests/witness_semantics.py`. It decides each of its sentences again
+`tests/test_gl.py` has the decider build tableaux for theorems and non-theorems of GL and checks
+that each closes or doesn't, so a sentence is added with its verdict.
+
+`tests/test_witness.py` does the same for sentences with comparisons, listed as theorems of R⁻
+whose tableau closes, theorems whose tableau doesn't, and non-theorems, and checks the tableaux
+in two more ways, with `tests/witness_semantics.py`. It decides each of its sentences again
 from Guaspari and Solovay's models of R⁻, by brute force, and sentences at random too: what the
-decider proves must be a theorem. And it has GL's decider decide whether a sentence follows from
-the axioms that the rules replace, taken as premises, which is how such a tableau is drawn by
-hand: the two must agree. Both searches are exponential, so they are for small sentences, and
-the second is only run on those listed there as small.
+decider proves must be a theorem. And it has the decider decide, as a sentence of GL, whether a
+sentence follows from the axioms that the rules replace, taken as premises, which is how such a
+tableau is drawn by hand: the two must agree. Both searches are exponential, so they are for
+small sentences, and the second is only run on those listed there as small.

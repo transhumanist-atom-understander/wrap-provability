@@ -10,6 +10,10 @@ dependencies = ["lean-interact>=0.11", "pylatexenc>=2.10"]
 requires = ["uv_build"]
 build-backend = "uv_build"
 
+# The package is `rtableau`, not the project's name.
+[tool.uv.build-backend]
+module-name = "rtableau"
+
 [dependency-groups]
 dev = [
     "pytest>=9.2.0",

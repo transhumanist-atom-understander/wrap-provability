@@ -1,4 +1,4 @@
-"""The witness decider's verdicts on sentences with witness comparisons, and two checks of them.
+"""The decider's verdicts on sentences with witness comparisons, and two checks of them.
 
 Its rules for comparisons are persistence and true before false: they prove theorems of
 Guaspari and Solovay's R⁻, but not all of them, since they say nothing of the order of boxed
@@ -6,20 +6,18 @@ formulas that come to hold together. So there are three lists: theorems of R⁻ 
 the ones of the tableau notebook first; theorems of R⁻ it doesn't; and sentences that are not
 theorems of R⁻.
 
-No verifier checks these tableaux. In its place, `test_models` has `witness_semantics` decide
-each sentence again from the models of R⁻, by brute force, and `test_axioms` has GL's decider
-decide whether the sentence follows from the axioms that the rules replace, taken as premises:
-the witness decider's tableau closes exactly when it does. A sentence can be added to `PROVED`
-or `NOT_PROVED` without knowing which it belongs in: `test_axioms` will say, if its tableau
-with the axioms as premises is small enough to add it to `SMALL` too.
+`test_models` has `witness_semantics` decide each sentence again from the models of R⁻, by
+brute force, and `test_axioms` has the decider decide, as a sentence of GL, whether the sentence
+follows from the axioms that the rules replace, taken as premises: its tableau for the sentence
+closes exactly when it does. A sentence can be added to `PROVED` or `NOT_PROVED` without knowing
+which it belongs in: `test_axioms` will say, if its tableau with the axioms as premises is small
+enough to add it to `SMALL` too.
 """
 
 import random
 
 import pytest
 
-from test_gl import NON_THEOREMS as GL_NON_THEOREMS
-from test_gl import THEOREMS as GL_THEOREMS
 from witness_semantics import reduction, sentence, theorem
 
 PROVED = [
@@ -124,10 +122,10 @@ NON_THEOREMS = [
 
 SENTENCES = PROVED + NOT_PROVED + NON_THEOREMS
 
-# The sentences that `test_axioms` has GL's decider decide with the axioms as premises: those
+# The sentences that `test_axioms` has the decider decide with the axioms as premises: those
 # for which that tableau has hundreds of lines, not thousands. That the others are spared it is
-# what the rules are for: the tableau for the Parikh sentence has 14,000 lines that way, and 52
-# with the rules.
+# what the rules are for: the tableau for the Parikh sentence has 26,000 lines that way, and
+# some 50 with the rules.
 SMALL = [
     "◇⊤ → □⊤ ≺ □⊥",
     "□(□⊤ ≺ □⊥)",
@@ -175,27 +173,27 @@ SMALL = [
 
 
 @pytest.mark.parametrize("sentence", PROVED)
-def test_proved(witness_tableau, witness_decider, sentence):
-    assert witness_decider.closed(witness_tableau(sentence))
+def test_proved(tableau, decider, sentence):
+    assert decider.closed(tableau(sentence))
 
 
 @pytest.mark.parametrize("sentence", NOT_PROVED + NON_THEOREMS)
-def test_not_proved(witness_tableau, witness_decider, sentence):
-    assert not witness_decider.closed(witness_tableau(sentence))
+def test_not_proved(tableau, decider, sentence):
+    assert not decider.closed(tableau(sentence))
 
 
 @pytest.mark.parametrize("A", SENTENCES)
-def test_models(witness_tableau, A):
+def test_models(tableau, A):
     """The lists are right about R⁻: in particular, what the decider proves is a theorem."""
-    assert theorem(sentence(witness_tableau(A))) == (A not in NON_THEOREMS)
+    assert theorem(sentence(tableau(A))) == (A not in NON_THEOREMS)
 
 
 @pytest.mark.parametrize("A", SMALL)
-def test_axioms(witness_tableau, witness_decider, tableau, decider, A):
+def test_axioms(tableau, decider, A):
     """The rules do what the axioms they replace do as premises: the tableau closes exactly
-    when GL's decider proves the sentence from them."""
-    t = witness_tableau(A)
-    assert witness_decider.closed(t) == decider.closed(tableau(reduction(sentence(t)))) == (A in PROVED)
+    when GL proves the sentence from them."""
+    t = tableau(A)
+    assert decider.closed(t) == decider.closed(tableau(reduction(sentence(t)))) == (A in PROVED)
 
 
 def sentences(seed, count, depth):
@@ -224,43 +222,37 @@ def sentences(seed, count, depth):
 
 
 @pytest.mark.parametrize("A", sentences(seed=1979, count=200, depth=4))
-def test_random(witness_tableau, witness_decider, A):
+def test_random(tableau, decider, A):
     """On sentences at random, too, the decider proves only theorems of R⁻."""
-    t = witness_tableau(A)
-    if witness_decider.closed(t):
+    t = tableau(A)
+    if decider.closed(t):
         assert theorem(sentence(t))
 
 
-@pytest.mark.parametrize("sentence", GL_THEOREMS + GL_NON_THEOREMS)
-def test_conservative(witness_tableau, witness_decider, tableau, decider, sentence):
-    """On the sentences of GL the two deciders agree."""
-    assert witness_decider.closed(witness_tableau(sentence)) == decider.closed(tableau(sentence))
-
-
 @pytest.mark.parametrize("sentence", ["□(p", "p ≺ q", "□p ≺ q", "¬□p ≺ □q", "□p ≺ □q ≺ □r", "□p ≼", "≺ □p"])
-def test_parse_error(witness_decider, sentence):
+def test_parse_error(decider, sentence):
     """What `≺` and `≼` compare must be written as boxed formulas."""
     with pytest.raises(ValueError):
-        witness_decider.tableau(sentence)
+        decider.tableau(sentence)
 
 
-def test_parse(witness_tableau, witness_decider):
+def test_parse(tableau, decider):
     """Comparisons bind tighter than the binary connectives, and their boxes take what `□`
     takes."""
-    spelled = witness_decider.sentence_tex(witness_tableau("□p ≺ □q ∧ □¬p ≼ □□q → r"))
-    assert spelled == witness_decider.sentence_tex(witness_tableau("((□p ≺ □q) ∧ (□(¬p) ≼ □(□q))) → r"))
+    spelled = decider.sentence_tex(tableau("□p ≺ □q ∧ □¬p ≼ □□q → r"))
+    assert spelled == decider.sentence_tex(tableau("((□p ≺ □q) ∧ (□(¬p) ≼ □(□q))) → r"))
 
 
-def test_tex(witness_tableau, witness_decider):
+def test_tex(tableau, decider):
     """The rules for comparisons add implications between the boxed formulas they compare."""
-    t = witness_tableau("□(□φ ≺ □ψ)")
-    assert witness_decider.sentence_tex(t) == r"\Box (\Box \varphi \prec \Box \psi)"
-    tex = witness_decider.tex(t)
+    t = tableau("□(□φ ≺ □ψ)")
+    assert decider.sentence_tex(t) == r"\Box (\Box \varphi \prec \Box \psi)"
+    tex = decider.tex(t)
     assert tex.startswith(r"\begin{prooftree}") and r"[{\Box \varphi \to \Box \psi, 0}" in tex
 
 
-def test_claim(witness_tableau):
+def test_claim(tableau):
     """A tableau that closes claims a theorem of R⁻; one that doesn't claims no more than that
     its rules were not enough."""
-    assert "□(□¬⊥ ≺ □⊥) is a theorem of R⁻" in witness_tableau("□(□⊤ ≺ □⊥)")
-    assert "does not follow from persistence and true before false" in witness_tableau("□⊤ ≺ □⊥")
+    assert "□(□¬⊥ ≺ □⊥) is a theorem of R⁻" in tableau("□(□⊤ ≺ □⊥)")
+    assert "does not follow from persistence and true before false" in tableau("□⊤ ≺ □⊥")

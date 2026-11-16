@@ -30,7 +30,9 @@ It can be pasted into the body of a document that has `\usepackage{tikz}` and
 `\usepackage{amssymb}`, as the `prooftree` of `tex` can into one with `\usepackage{prooftrees}`.
 The worlds are drawn as a tree, an arrow from each to the worlds started from it, and stand for
 the transitive order that generates. By each world is what the branch says there of the
-sentence letters and the comparisons; a letter it says nothing of can be valued either way. Of
+sentence letters and the comparisons; a letter it says nothing of can be valued either way.
+The comparisons are long, so they are named `c₁`, `c₂` and so on where the worlds are, and
+spelled out below them, which keeps the drawing narrow enough for a page. Of
 a sentence of GL this is a countermodel. Of a sentence with comparisons it is a model of the
 rules there are for them, and not always one of R⁻.
 

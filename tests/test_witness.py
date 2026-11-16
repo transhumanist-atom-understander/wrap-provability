@@ -241,4 +241,6 @@ def test_claim(tableau):
 
 def test_model_tex(tableau, decider):
     tex = decider.model_tex(tableau("□p ≺ □q → ¬(□q ≺ □p)"))
-    assert r"{$\,\Vdash \Box p \prec \Box q, \Box q \prec \Box p$}" in tex
+    # the comparisons are named where the worlds are, and spelled out below them
+    assert r"{$\,\Vdash c_{1}, c_{2}$}" in tex
+    assert r"{$c_{1} = \Box p \prec \Box q$}" in tex and r"{$c_{2} = \Box q \prec \Box p$}" in tex

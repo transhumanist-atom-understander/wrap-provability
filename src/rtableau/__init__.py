@@ -93,7 +93,8 @@ class Decider(LeanServer):
         describes, as a `tikzpicture` of the LaTeX package `tikz`, which also needs `amssymb`;
         `None` if the tableau closed. The worlds are drawn as a tree, with an arrow from each
         to the worlds started from it, and stand for the transitive order that generates; by
-        each is what the branch says there of the sentence letters and the comparisons. Of a
+        each is what the branch says there of the sentence letters and the comparisons, which
+        are named `c₁`, `c₂` and so on there and spelled out below the worlds. Of a
         sentence with no comparison it is a countermodel, however the letters that a world says
         nothing of are valued there; of one with comparisons it is a model of the rules there
         are for them, and not always one of R⁻."""

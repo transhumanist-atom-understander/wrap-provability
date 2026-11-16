@@ -54,10 +54,12 @@ PROVED = [
     "⊡(R ↔ □¬R ≺ □R) → (□¬R → □⊥)",
     "⊡(R ↔ □¬R ≺ □R) → (◇⊤ → ¬□R ∧ ¬□¬R)",
     "⊡(R ↔ □¬R ≺ □R) → (◇⊤ → ¬R)",
-    # provable fixed points (de Jongh and Montagna 1.2, 6.1, 7.1), a refutable one (5.1)
+    # provable fixed points (de Jongh and Montagna 1.2, 1.5, 6.1, 7.1, 7.4), a refutable one (5.1)
     "⊡(c ↔ □⊤ ≺ □c) → □c",
+    "⊡(c ↔ □□□c ≺ □□c ∧ □□c ≺ □c) → □□c",
     "⊡(c ↔ □□(c ∨ q) ≺ □c) → □c",
     "⊡(c ↔ □(□□c ≺ □c) ≺ □c) → □c",
+    "⊡(c ↔ □d ≺ □c) ∧ ⊡(d ↔ □□c ≺ □d) → □c",
     "⊡(c ↔ □¬c ≺ □□¬c) → □¬c",
     # GL's theorems are theorems
     "□(□(□p ≺ □q) → □p ≺ □q) → □(□p ≺ □q)",

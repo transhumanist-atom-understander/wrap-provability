@@ -1,12 +1,12 @@
-"""The decider, found at `$GL_DECIDER` as the command finds it and started once for the whole
-run; the tests are skipped if it isn't set."""
+"""The deciders, found at `$GL_DECIDER` as the commands find them, each started once for the
+whole run; the tests are skipped if it isn't set."""
 
 import functools
 import os
 
 import pytest
 
-from gltableau import Decider
+from rtableau import Decider, WitnessDecider
 
 
 def project(variable):
@@ -25,3 +25,15 @@ def decider():
 def tableau(decider):
     """The decider's tableau for a sentence, as a Lean file, computed once per sentence."""
     return functools.cache(decider.tableau)
+
+
+@pytest.fixture(scope="session")
+def witness_decider():
+    with WitnessDecider(project("GL_DECIDER")) as d:
+        yield d
+
+
+@pytest.fixture(scope="session")
+def witness_tableau(witness_decider):
+    """The witness decider's tableau for a sentence, as a Lean file, computed once per sentence."""
+    return functools.cache(witness_decider.tableau)

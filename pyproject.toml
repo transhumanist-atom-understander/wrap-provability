@@ -1,5 +1,5 @@
 [project]
-name = "rtableaux"
+name = "rtableau"
 version = "0.1.0"
 description = "Witness comparison tableaux: a Python wrapper of decide-provability"
 readme = "README.md"

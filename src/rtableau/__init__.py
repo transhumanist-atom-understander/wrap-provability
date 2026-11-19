@@ -8,9 +8,9 @@
         d.models_tex(d.tableau("□p → p"))        # the models of its open branches as LaTeX tikzpictures
 
 The sentences are those of Guaspari and Solovay's R⁻: GL's, with the witness comparisons
-`□A ≺ □B` and `□A ≼ □B`. The rules for comparisons are not all of R⁻ yet, so a tableau that
-closes shows a theorem of R⁻ but one that doesn't shows a non-theorem only if its sentence has
-no comparison: for a sentence of GL the tableau is GL's, and decides it.
+`□A ≺ □B` and `□A ≼ □B`. The rules for comparisons are complete for R⁻, so a tableau closes if
+its sentence is a theorem of R⁻ and doesn't if it is not; for a sentence of GL the tableau is
+GL's.
 
 `decider` is the directory of a checkout of the Lean project `decide-provability`; there is no
 default, it must be given. A `Decider` builds the project, with `lake build`, and runs the Lean
@@ -73,10 +73,8 @@ class Decider(LeanServer):
             raise ValueError(str(e)) from None
 
     def closed(self, tableau):
-        """Whether the tableau of the Lean file `tableau` closed, so its sentence is a theorem
-        of R⁻, and of GL if it has no comparison. If it didn't, a sentence with no comparison is
-        not a theorem; of one with comparisons it only shows that persistence and true before
-        false, the rules there are for them, are not enough."""
+        """Whether the tableau of the Lean file `tableau` closed: its sentence is a theorem of
+        R⁻, and of GL if it has no comparison, if it did, and not a theorem if it didn't."""
         return self._run(tableau + "\n#eval IO.print t.tree.isClosed") == "true"
 
     def tex(self, tableau):
@@ -95,9 +93,9 @@ class Decider(LeanServer):
         are drawn the same, and empty if the tableau closed. The worlds are drawn as a tree, with an arrow from each
         to the worlds started from it, and stand for the transitive order that generates; by
         each is what the branch says there of the sentence letters and the comparisons, which
-        are named `c₁`, `c₂` and so on there and spelled out below the worlds. Of a
-        sentence with no comparison each is a countermodel, however the letters that a world says
-        nothing of are valued there; of one with comparisons each is a model of the rules there
-        are for them, and not always one of R⁻."""
+        are named `c₁`, `c₂` and so on there and spelled out below the worlds. Each is a
+        countermodel, a model of R⁻, however the letters that a world says nothing of are valued
+        there; the comparisons it says nothing of are settled by how the boxed formulas came to
+        hold on the way down to it."""
         printed = self._tex(tableau + '\n#eval IO.print ("\\n".intercalate t.modelsTex)')
         return [model.strip() for model in printed.split("\n\n") if model.strip()]

@@ -36,17 +36,23 @@ the transitive order that generates. By each world is what the branch says there
 sentence letters and the comparisons; a letter it says nothing of can be valued either way.
 The comparisons are long, so they are named `c₁`, `c₂` and so on where the worlds are, and
 spelled out below them, which keeps the drawing narrow enough for a page. Of
-a sentence of GL each is a countermodel. Of a sentence with comparisons each is a model of the
-rules there are for them, and not always one of R⁻.
+a sentence of GL each is a countermodel, and of a sentence with comparisons too, a model of
+R⁻: the comparisons a world says nothing of are settled by how the boxed formulas came to hold
+on the way down to it.
 
-The rules for comparisons are not all of R⁻ yet. They are the persistence of a comparison and
-that true comes before false, `(□A ∧ ¬□B) → □A ≺ □B`, as
+The rules for comparisons are complete for R⁻, as
 [the decider's README](https://github.com/transhumanist-atom-understander/decide-provability#witness-comparisons)
-sets out, in place of those axioms as premises. So a tableau that closes shows a theorem of R⁻,
-but one that doesn't shows only that those rules are not enough: they say nothing of the order
-of boxed formulas that come to hold together, so `□p ≺ □q → ¬(□q ≺ □p)` is not proved. A
-sentence of GL, one with no comparison, is the special case that is decided: its tableau is
-GL's, and closes if the sentence is a theorem of GL and doesn't if it is not.
+sets out: a tableau closes if its sentence is a theorem of R⁻ and doesn't if it is not. A
+comparison that fails is traded for its converse, a comparison that holds is traced back to the
+world where it came to hold, and a branch also closes on comparisons at a world that go round
+in a circle, one of them strict. For a sentence of GL, one with no comparison, the tableau is
+GL's.
+
+```python
+with Decider("/path/to/decide-provability") as d:
+    d.closed(d.tableau("□p ≺ □q ∧ □q ≺ □r → □p ≺ □r"))   # True: a theorem of R⁻
+    d.closed(d.tableau("□⊤ ≺ □⊥"))                       # False: not a theorem of R⁻
+```
 
 ```python
 with Decider("/path/to/decide-provability") as d:
@@ -84,11 +90,7 @@ The tests are the project's, not the wrapper's alone. They find the Lean project
 `tests/test_gl.py` has the decider build tableaux for theorems and non-theorems of GL and checks
 that each closes or doesn't, so a sentence is added with its verdict.
 
-`tests/test_witness.py` does the same for sentences with comparisons, listed as theorems of R⁻
-whose tableau closes, theorems whose tableau doesn't, and non-theorems, and checks the tableaux
-in two more ways, with `tests/witness_semantics.py`. It decides each of its sentences again
-from Guaspari and Solovay's models of R⁻, by brute force, and sentences at random too: what the
-decider proves must be a theorem. And it has the decider decide, as a sentence of GL, whether a
-sentence follows from the axioms that the rules replace, taken as premises, which is how such a
-tableau is drawn by hand: the two must agree. Both searches are exponential, so they are for
-small sentences, and the second is only run on those listed there as small.
+`tests/test_witness.py` does the same for sentences with comparisons, theorems of R⁻ and
+non-theorems, and checks the tableaux with `tests/witness_semantics.py`, which decides each of
+its sentences again from Guaspari and Solovay's models of R⁻, by brute force, and sentences at
+random too: the two must agree. That search is exponential, so it is for small sentences.

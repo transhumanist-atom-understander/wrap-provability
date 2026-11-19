@@ -1,14 +1,6 @@
-"""Two checks of the decider's tableaux for sentences with witness comparisons, that need
-nothing from it but its sentence.
-
-`theorem` decides a sentence from Guaspari and Solovay's models of R⁻, by brute force: what a
-tableau that closes must agree with.
-
-`reduction` is the sentence of GL that says a sentence follows from the axioms that the
-decider's rules replace, with each comparison a sentence letter: Guaspari and Solovay's
-reduction of R⁻ to GL (Rosser sentences, 1979, 3.1), with those order axioms only. It is how a
-tableau is drawn by hand, with the axioms as premises, and the decider decides it, as it does
-any sentence of GL: what its tableau for the sentence itself must agree with.
+"""A check of the decider's tableaux for sentences with witness comparisons, that needs nothing
+from it but its sentence: `theorem` decides a sentence from Guaspari and Solovay's models of
+R⁻, by brute force, and a tableau closes exactly when it says so.
 """
 
 import functools
@@ -128,52 +120,3 @@ def theorem(A):
         return False
 
     return not node((("neg", A),), ())
-
-
-# The reduction to GL
-
-
-def axioms(c):
-    """The axioms of R⁻ that the decider's rules for the comparison `c` replace. For `c` the
-    comparison `□B ≺ □C` or `□B ≼ □C`: it persists, true comes before false, its first formula
-    is true, and false never comes before true."""
-    B, C = ("box", c[1]), ("box", c[2])
-    return [
-        ("imp", c, ("box", c)),
-        ("imp", ("and", B, ("neg", C)), c),
-        ("imp", c, B),
-        ("imp", ("and", C, ("neg", B)), ("box", ("neg", c))),
-    ]
-
-
-def reduction(A):
-    """The sentence of GL, as the decider reads one, that says `A` follows from `axioms`, at
-    the world where it is evaluated and at the worlds that one sees, for each comparison in
-    `A`. A comparison is the sentence letter `c0`, `c1`, ..., with as many `c`s as it takes for
-    it to be no sentence letter of `A`."""
-    comparisons = sorted((B for B in subformulas(A) if B[0] in ("prec", "preceq")), key=repr)
-    c = "c"
-    while any(B[0] == "atom" and B[1].startswith(c) for B in subformulas(A)):
-        c += "c"
-    letter = {comparison: f"{c}{n}" for n, comparison in enumerate(comparisons)}
-
-    def spell(B):
-        if B in letter:
-            return letter[B]
-        match B:
-            case ("atom", p):
-                return p
-            case ("bot",):
-                return "⊥"
-            case ("neg", C):
-                return "¬" + spell(C)
-            case ("box", C):
-                return "□" + spell(C)
-            case ("dia", C):
-                return "◇" + spell(C)
-            case (connective, C, D):
-                symbol = {"and": "∧", "or": "∨", "imp": "→", "iff": "↔"}[connective]
-                return f"({spell(C)} {symbol} {spell(D)})"
-
-    premises = [f"⊡{spell(X)}" for comparison in comparisons for X in axioms(comparison)]
-    return " → ".join([*premises, spell(A)])

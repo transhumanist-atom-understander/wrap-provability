@@ -1,26 +1,20 @@
-"""The decider's verdicts on sentences with witness comparisons, and two checks of them.
+"""The decider's verdicts on sentences with witness comparisons, and a check of them.
 
-Its rules for comparisons are persistence and true before false: they prove theorems of
-Guaspari and Solovay's R⁻, but not all of them, since they say nothing of the order of boxed
-formulas that come to hold together. So there are three lists: theorems of R⁻ it proves, with
-the ones of the tableau notebook first; theorems of R⁻ it doesn't; and sentences that are not
-theorems of R⁻.
+Its rules for comparisons are complete for Guaspari and Solovay's R⁻: a tableau closes if its
+sentence is a theorem of R⁻ and doesn't if it is not. So there are two lists, theorems, with
+the ones of the tableau notebook first, and non-theorems.
 
 `test_models` has `witness_semantics` decide each sentence again from the models of R⁻, by
-brute force, and `test_axioms` has the decider decide, as a sentence of GL, whether the sentence
-follows from the axioms that the rules replace, taken as premises: its tableau for the sentence
-closes exactly when it does. A sentence can be added to `PROVED` or `NOT_PROVED` without knowing
-which it belongs in: `test_axioms` will say, if its tableau with the axioms as premises is small
-enough to add it to `SMALL` too.
+brute force, and `test_random` does the same for sentences at random: the two must agree.
 """
 
 import random
 
 import pytest
 
-from witness_semantics import reduction, sentence, theorem
+from witness_semantics import sentence, theorem
 
-PROVED = [
+THEOREMS = [
     # the notebook: a proof of ⊤ comes before any of ⊥, if there is none of ⊥, and provably so;
     # the Parikh sentence; the two halves of Rosser's theorem
     "◇⊤ → □⊤ ≺ □⊥",
@@ -64,9 +58,6 @@ PROVED = [
     # GL's theorems are theorems
     "□(□(□p ≺ □q) → □p ≺ □q) → □(□p ≺ □q)",
     "□(□p ≼ □q → r) → (□(□p ≼ □q) → □r)",
-]
-
-NOT_PROVED = [
     # ≼ is a total preorder of the boxed formulas that hold, and ≺ is its strict part
     "□p → □p ≼ □p",
     "□p ≼ □q ∧ □q ≼ □r → □p ≼ □r",
@@ -81,6 +72,13 @@ NOT_PROVED = [
     # so the order of two boxed formulas that hold is settled
     "¬(□p ≺ □q) ∧ □q → □¬(□p ≺ □q)",
     "□p ≺ □q ∧ ◇⊤ → □(□p ≺ □q) ≺ □(□q ≺ □p)",
+    "⊡(J ↔ □□J ≺ □(□⊥ → J)) → ((¬J ∧ □(□⊥ → J)) → □¬J)",
+    # no circle of comparisons with a strict one in it, however long
+    "¬(□p ≺ □q ∧ □q ≺ □r ∧ □r ≺ □p)",
+    "¬(□p ≼ □q ∧ □q ≼ □r ∧ □r ≼ □s ∧ □s ≺ □p)",
+    "□p ≼ □q ∧ □q ≼ □r ∧ □r ≼ □p → □q ≼ □p",
+    "□p ≺ □q ∧ □q ≼ □r → □p ≺ □r",
+    "□p ≺ □q ↔ □p ≼ □q ∧ ¬(□q ≼ □p)",
     # a provable fixed point that needs it (de Jongh and Montagna, after 3.5)
     "⊡(c ↔ □□c ≺ □(□⊥ → c)) → □□c",
 ]
@@ -114,67 +112,31 @@ NON_THEOREMS = [
     "⊡(R ↔ □¬R ≺ □R) → ¬□¬R",
     "⊡(R ↔ □¬R ≺ □R) → (◇⊤ → R)",
     "⊡(R ↔ □¬R ≺ □R) → ¬R",
+    # comparisons that go round, with no strict one among them
+    "¬(□p ≼ □q ∧ □q ≼ □r ∧ □r ≼ □p)",
+    "□p ≼ □q ∧ □q ≼ □r → □p ≺ □r",
     # GL's non-theorems are not theorems
     "□(□p ≺ □q) → □p ≺ □q",
     "□p ≺ □q → q",
 ]
 
-SENTENCES = PROVED + NOT_PROVED + NON_THEOREMS
-
-# The sentences that `test_axioms` has the decider decide with the axioms as premises: some of
-# each list, and of each rule, for which that tableau has a few hundred lines at most, since Lean
-# takes seconds to read a longer one. That the others are spared it is what the rules are for:
-# the tableau for the Parikh sentence has 26,000 lines that way, and some 50 with the rules.
-SMALL = [
-    "⊡(R ↔ □¬R ≺ □R) ∧ □R ∧ ◇⊤ → ¬R",
-    "□p ∧ ¬□q → □p ≺ □q",
-    "□p ∧ ¬□q → □p ≼ □q",
-    "□p ≺ □q → □(□p ≺ □q)",
-    "□p ≼ □q → □(□p ≼ □q)",
-    "□p ≺ □q ∨ □r → □(□p ≺ □q ∨ □r)",
-    "□p ≼ □q → □□(□p ≼ □q ∧ □p)",
-    "□p ∧ ¬□q → □(□p ≺ □q)",
-    "□p ≺ □q → □p",
-    "□p ≼ □q → □p",
-    "□q ∧ ¬□p → ¬(□p ≺ □q)",
-    "□q ∧ ¬□p → □¬(□p ≺ □q)",
-    "□p ≺ □q → □(□q → □p)",
-    "□(□p ≺ □q) ≼ □r → □(□p ≺ □q)",
-    "⊡(R ↔ □¬R ≺ □R) → (◇⊤ → ¬R)",
-    "□(□p ≼ □q → r) → (□(□p ≼ □q) → □r)",
-    "□p → □p ≼ □p",
-    "□p ≺ □q → ¬(□q ≺ □p)",
-    "¬(□p ≺ □p)",
-    "□⊤ ≺ □⊥",
-    "□⊤ ≼ □p",
-    "□p → □p ≺ □q",
-    "⊡(R ↔ □¬R ≺ □R) → ¬R",
-    "□p ≺ □q → q",
-]
+SENTENCES = THEOREMS + NON_THEOREMS
 
 
-@pytest.mark.parametrize("sentence", PROVED)
-def test_proved(tableau, decider, sentence):
+@pytest.mark.parametrize("sentence", THEOREMS)
+def test_theorems(tableau, decider, sentence):
     assert decider.closed(tableau(sentence))
 
 
-@pytest.mark.parametrize("sentence", NOT_PROVED + NON_THEOREMS)
-def test_not_proved(tableau, decider, sentence):
+@pytest.mark.parametrize("sentence", NON_THEOREMS)
+def test_non_theorems(tableau, decider, sentence):
     assert not decider.closed(tableau(sentence))
 
 
 @pytest.mark.parametrize("A", SENTENCES)
 def test_models(tableau, A):
-    """The lists are right about R⁻: in particular, what the decider proves is a theorem."""
-    assert theorem(sentence(tableau(A))) == (A not in NON_THEOREMS)
-
-
-@pytest.mark.parametrize("A", SMALL)
-def test_axioms(tableau, decider, A):
-    """The rules do what the axioms they replace do as premises: the tableau closes exactly
-    when GL proves the sentence from them."""
-    t = tableau(A)
-    assert decider.closed(t) == decider.closed(tableau(reduction(sentence(t)))) == (A in PROVED)
+    """The lists are right about R⁻."""
+    assert theorem(sentence(tableau(A))) == (A in THEOREMS)
 
 
 def sentences(seed, count, depth):
@@ -202,12 +164,11 @@ def sentences(seed, count, depth):
     return found
 
 
-@pytest.mark.parametrize("A", sentences(seed=1979, count=100, depth=4))
+@pytest.mark.parametrize("A", sentences(seed=1979, count=300, depth=4))
 def test_random(tableau, decider, A):
-    """On sentences at random, too, the decider proves only theorems of R⁻."""
+    """On sentences at random, too, the decider proves the theorems of R⁻ and no others."""
     t = tableau(A)
-    if decider.closed(t):
-        assert theorem(sentence(t))
+    assert decider.closed(t) == theorem(sentence(t))
 
 
 @pytest.mark.parametrize("sentence", ["□(p", "p ≺ q", "□p ≺ q", "¬□p ≺ □q", "□p ≺ □q ≺ □r", "□p ≼", "≺ □p"])
@@ -225,22 +186,30 @@ def test_parse(tableau, decider):
 
 
 def test_tex(tableau, decider):
-    """The rules for comparisons add implications between the boxed formulas they compare."""
+    """A comparison that fails is split into its first formula failing and the converse
+    comparison; one that holds at a world held at the world that started it, or its second
+    formula didn't hold there."""
     t = tableau("□(□φ ≺ □ψ)")
     assert decider.sentence_tex(t) == r"\Box (\Box \varphi \prec \Box \psi)"
     tex = decider.tex(t)
-    assert tex.startswith(r"\begin{prooftree}") and r"[{\Box \varphi \to \Box \psi, 0}" in tex
+    assert tex.startswith(r"\begin{prooftree}") and r"[{\Box \psi \preccurlyeq \Box \varphi, 1}" in tex
+    assert r"[{(\Box \psi \preccurlyeq \Box \varphi) \lor \lnot \Box \varphi, 0}" in tex
 
 
 def test_claim(tableau):
-    """A tableau that closes claims a theorem of R⁻; one that doesn't claims no more than that
-    its rules were not enough."""
+    """A tableau that closes claims a theorem of R⁻, and one that doesn't a non-theorem."""
     assert "□(□¬⊥ ≺ □⊥) is a theorem of R⁻" in tableau("□(□⊤ ≺ □⊥)")
-    assert "does not follow from persistence and true before false" in tableau("□⊤ ≺ □⊥")
+    assert "□¬⊥ ≺ □⊥ is not a theorem of R⁻" in tableau("□⊤ ≺ □⊥")
+
+
+def test_circle(tableau):
+    """A branch closes on comparisons at a world that go round, one of them strict."""
+    assert "(.cycle 0 [(.prec " in tableau("¬(□p ≺ □q ∧ □q ≺ □r ∧ □r ≺ □p)")
 
 
 def test_models_tex(tableau, decider):
-    [tex] = decider.models_tex(tableau("□p ≺ □q → ¬(□q ≺ □p)"))
-    # the comparisons are named where the worlds are, and spelled out below them
-    assert r"{$\,\Vdash c_{1}, c_{2}$}" in tex
-    assert r"{$c_{1} = \Box p \prec \Box q$}" in tex and r"{$c_{2} = \Box q \prec \Box p$}" in tex
+    [tex] = decider.models_tex(tableau("□p ≼ □q → □p ≺ □q"))
+    # the comparisons are named where the worlds are, and spelled out below them: the one that
+    # fails, and its converse, which holds
+    assert r"{$\,\Vdash c_{1}, \lnot c_{2}, c_{3}$}" in tex
+    assert r"{$c_{1} = \Box p \preccurlyeq \Box q$}" in tex and r"{$c_{3} = \Box q \preccurlyeq \Box p$}" in tex

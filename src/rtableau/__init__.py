@@ -82,14 +82,17 @@ class Decider(LeanServer):
         escapes = {"n": "\n", "t": "\t"}
         return re.sub(r"\\(x[0-9a-f]{2}|.)", lambda m: chr(int(m[1][1:], 16)) if len(m[1]) == 3 else escapes.get(m[1], m[1]), literal[1:-1]).strip()
 
+    def _letters(self, sentence):
+        """The sentence letters of `sentence`, as Lean gives them, with their Greek letters and
+        other such characters as LaTeX commands, for math mode: what goes in the fields of the
+        format strings that Lean gives LaTeX as. Only the letters are turned into LaTeX here."""
+        letters = self._eval(f"Tableau.letters {json.dumps(sentence, ensure_ascii=False)}").split(" ")
+        return [re.sub(r"\\ensuremath\{([^{}]*)\}", r"\1", unicode_to_latex(a, non_ascii_only=True)) for a in letters]
+
     def _tex(self, sentence, show):
         """The LaTeX that the Lean function `show` makes of the tableau for `sentence`, in a
-        LaTeX style, with the Greek letters and other such characters of its sentence letters
-        as LaTeX commands, for math mode. Lean gives the sentence letters, and the LaTeX as a
-        format string with a field for each: only the letters are turned into LaTeX here."""
-        letters = self._eval(f"Tableau.letters {json.dumps(sentence, ensure_ascii=False)}").split(" ")
-        letters = [re.sub(r"\\ensuremath\{([^{}]*)\}", r"\1", unicode_to_latex(a, non_ascii_only=True)) for a in letters]
-        return self._decide(sentence, f"(·.format {show})").format(*letters)
+        LaTeX style, with its sentence letters as `_letters` has them."""
+        return self._decide(sentence, f"(·.format {show})").format(*self._letters(sentence))
 
     def closed(self, sentence):
         """Whether the tableau for `sentence` closes: the sentence is a theorem of R⁻, and of
@@ -101,8 +104,8 @@ class Decider(LeanServer):
         return self._tex(sentence, "(fun t s => t.tex s)")
 
     def sentence_tex(self, sentence):
-        """`sentence` in LaTeX, for math mode."""
-        return self._tex(sentence, "(fun t s => t.sentence.render s)")
+        """`sentence` in LaTeX, for math mode. No tableau is built for it."""
+        return self._eval(f"Tableau.sentenceTex {json.dumps(sentence, ensure_ascii=False)}").format(*self._letters(sentence))
 
     def models_tex(self, sentence):
         """The models that the open branches of the tableau for `sentence` describe, each as a

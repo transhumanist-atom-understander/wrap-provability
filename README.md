@@ -82,7 +82,7 @@ any run of characters other than whitespace, parentheses and the connectives, an
 `sentence_tex` and `models_tex` print its Greek letters and other such characters as LaTeX
 commands, as `pylatexenc` gives them, `φ` as `\ensuremath{\varphi}`, which is `\varphi` in math
 mode, whatever comes after it; a letter can be LaTeX to begin with, `\varphi` or `p_{1}`, and is
-printed as it is. Lean gives the sentence letters, and the LaTeX as a format
+printed as it is. The LaTeX is for LaTeX to compile, not for MathJax or KaTeX. Lean gives the sentence letters, and the LaTeX as a format
 string with a field for each, so only the letters are turned into LaTeX, and the rest is as
 Lean has it. `¬ □ ◇ ⊡` bind tightest, then `≺` and `≼`, then `∧`, `∨`, `→`,
 `↔`, and what `≺` and `≼` compare must be written as boxed formulas: `□p ≺ □q ∧ r` is

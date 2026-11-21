@@ -4,7 +4,7 @@
         d.closed("⊡(Π ↔ □□Π ≺ □Π) → □Π")         # whether its tableau closes, so it is a theorem of R⁻
         d.tex("⊡(Π ↔ □□Π ≺ □Π) → □Π")            # the tableau as a LaTeX prooftree
         d.sentence_tex("⊡(Π ↔ □□Π ≺ □Π) → □Π")   # the sentence in LaTeX
-        d.models_tex("□p → p")                    # the models of its open branches as LaTeX tikzpictures
+        d.models_tex("□p → p")                    # the models of its open branches as LaTeX trees
         d.lean("□p → p")                          # the tableau as a Lean file
 
 The sentences are those of Guaspari and Solovay's R⁻: GL's, with the witness comparisons
@@ -106,8 +106,8 @@ class Decider(LeanServer):
 
     def models_tex(self, sentence):
         """The models that the open branches of the tableau for `sentence` describe, each as a
-        `tikzpicture` of the LaTeX package `tikz`, which also needs `amssymb`: a list, the
-        branches from left to right, with one model for branches that are drawn the same, and
+        tree of the LaTeX package `forest`, which also needs the package `amssymb` and the TikZ
+        library `shapes.multipart`: a list, the branches from left to right, with one model for branches that are drawn the same, and
         empty if the tableau closes. The worlds are drawn as a tree, with an arrow from each to
         the worlds started from it, and stand for the transitive order that generates; by each
         is what the branch says there of the sentence letters and the comparisons, which are

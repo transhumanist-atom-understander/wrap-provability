@@ -220,5 +220,5 @@ def test_models_tex(decider):
     [tex] = decider.models_tex("□p ≼ □q → □p ≺ □q")
     # the comparisons are named where the worlds are, and spelled out below them: the one that
     # fails, and its converse, which holds
-    assert r"{$\,\Vdash c_{1}, \lnot c_{2}, c_{3}$}" in tex
+    assert r"$\Vdash c_{1}, \lnot c_{2}, c_{3}$" in tex
     assert r"{$c_{1} = \Box p \preccurlyeq \Box q$}" in tex and r"{$c_{3} = \Box q \preccurlyeq \Box p$}" in tex

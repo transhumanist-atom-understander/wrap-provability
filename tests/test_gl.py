@@ -103,7 +103,7 @@ def test_letters(decider):
     assert decider.sentence_tex(r"□p_{1} → φ1 ∨ \varphi ∨ {0}") == r"\Box p_{1} \to (\varphi1 \lor (\varphi \lor {0}))"
     assert r"[{\lnot (p_{1} \to \varphi), 0}" in decider.tex("p_{1} → φ")
     [model] = decider.models_tex("α_{2}")
-    assert r"{$\,\Vdash \lnot \alpha_{2}$}" in model
+    assert r"$\Vdash \lnot \alpha_{2}$" in model
     # no letter at all, and more than ten
     assert decider.sentence_tex("□⊥ → ⊥") == r"\Box \bot \to \bot"
     letters = "a b c d e f g h i j k φ".split()
@@ -117,18 +117,27 @@ def test_claim(decider):
     assert "□p → p is not a theorem of GL" in decider.lean("□p → p")
 
 
+def worlds(model):
+    """The lines of a model's worlds: each a node of the tree, nested in the node of the world
+    that started it, which the indentation shows."""
+    return [line for line in model.splitlines() if line.lstrip().startswith("[{$w_")]
+
+
 def test_models_tex(decider):
     assert decider.models_tex("□(□p → p) → □p") == []
-    assert decider.models_tex("□φ → φ") == [r"""\begin{tikzpicture}[>=stealth]
-  \node[inner sep=2pt] (w0) at (0mm,0mm) {$w_{0}$};
-  \node[anchor=west, inner sep=0pt] at (w0.east) {$\,\Vdash \lnot \varphi$};
-\end{tikzpicture}"""]
+    [model] = decider.models_tex("□φ → φ")
+    assert model.startswith(r"\begin{forest}") and model.endswith(r"\end{forest}")
+    assert worlds(model) == [r"  [{$w_{0}$\nodepart{two}$\Vdash \lnot \varphi$}]"]
     # an open branch for each way that p ∨ q → p ∧ q fails
-    assert [m.splitlines()[2].split("Vdash ")[1] for m in decider.models_tex("p ∨ q → p ∧ q")] == [
-        r"p, \lnot q$};", r"q, \lnot p$};"]
-    # two worlds started from the first, and one from the second of them: a tree, without the
-    # arrow that transitivity adds
-    [tex] = decider.models_tex("((□□Π ∧ ¬□Π) → Π) ∧ (Π → □Π) → □Π")
-    arrows = [line.strip() for line in tex.splitlines() if "draw" in line]
-    assert arrows == [r"\draw[->] (w0.south) -- (w1.north);", r"\draw[->] (w0.south) -- (w2.north);", r"\draw[->] (w2.south) -- (w3.north);"]
-    assert tex.count(r"\Vdash \lnot \Pi$") == 3 and "(w2.east)" not in tex
+    assert [worlds(m) for m in decider.models_tex("p ∨ q → p ∧ q")] == [
+        [r"  [{$w_{0}$\nodepart{two}$\Vdash p, \lnot q$}]"], [r"  [{$w_{0}$\nodepart{two}$\Vdash q, \lnot p$}]"]]
+    # two worlds started from the first, and one from the second of them, which says nothing
+    # of Π: a tree, without the arrow that transitivity adds
+    [model] = decider.models_tex("((□□Π ∧ ¬□Π) → Π) ∧ (Π → □Π) → □Π")
+    assert worlds(model) == [
+        r"  [{$w_{0}$\nodepart{two}$\Vdash \lnot \Pi$}",
+        r"    [{$w_{1}$\nodepart{two}$\Vdash \lnot \Pi$}]",
+        r"    [{$w_{2}$\nodepart{two}}",
+        r"      [{$w_{3}$\nodepart{two}$\Vdash \lnot \Pi$}]]]"]
+    # the room a letter takes is the room it takes in print, however it was typed
+    assert decider.models_tex(r"□\varphi ∨ □\psi") == decider.models_tex("□φ ∨ □ψ")

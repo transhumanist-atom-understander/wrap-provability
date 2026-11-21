@@ -76,45 +76,45 @@ NON_THEOREMS = [
 
 
 @pytest.mark.parametrize("sentence", THEOREMS)
-def test_theorem(tableau, decider, sentence):
-    assert decider.closed(tableau(sentence))
+def test_theorem(decider, sentence):
+    assert decider.closed(sentence)
 
 
 @pytest.mark.parametrize("sentence", NON_THEOREMS)
-def test_non_theorem(tableau, decider, sentence):
-    assert not decider.closed(tableau(sentence))
+def test_non_theorem(decider, sentence):
+    assert not decider.closed(sentence)
 
 
-def test_parse_error(decider):
+@pytest.mark.parametrize("method", ["closed", "tex", "sentence_tex", "models_tex", "lean"])
+def test_parse_error(decider, method):
     with pytest.raises(ValueError):
-        decider.tableau("□(p")
+        getattr(decider, method)("□(p")
 
 
-def test_tex(tableau, decider):
-    t = tableau("□(□φ → φ) → □φ")
-    assert decider.sentence_tex(t) == r"\Box (\Box \varphi \to \varphi) \to \Box \varphi"
-    tex = decider.tex(t)
+def test_tex(decider):
+    assert decider.sentence_tex("□(□φ → φ) → □φ") == r"\Box (\Box \varphi \to \varphi) \to \Box \varphi"
+    tex = decider.tex("□(□φ → φ) → □φ")
     assert tex.startswith(r"\begin{prooftree}") and r"[{\lnot \Box \varphi, 0}" in tex
 
 
-def test_claim(tableau):
+def test_claim(decider):
     """A tableau for a sentence of GL claims that it is a theorem of GL, or that it is not."""
-    assert "□(□p → p) → □p is a theorem of GL" in tableau("□(□p → p) → □p")
-    assert "□p → p is not a theorem of GL" in tableau("□p → p")
+    assert "□(□p → p) → □p is a theorem of GL" in decider.lean("□(□p → p) → □p")
+    assert "□p → p is not a theorem of GL" in decider.lean("□p → p")
 
 
-def test_models_tex(tableau, decider):
-    assert decider.models_tex(tableau("□(□p → p) → □p")) == []
-    assert decider.models_tex(tableau("□φ → φ")) == [r"""\begin{tikzpicture}[>=stealth]
+def test_models_tex(decider):
+    assert decider.models_tex("□(□p → p) → □p") == []
+    assert decider.models_tex("□φ → φ") == [r"""\begin{tikzpicture}[>=stealth]
   \node[inner sep=2pt] (w0) at (0mm,0mm) {$w_{0}$};
   \node[anchor=west, inner sep=0pt] at (w0.east) {$\,\Vdash \lnot \varphi$};
 \end{tikzpicture}"""]
     # an open branch for each way that p ∨ q → p ∧ q fails
-    assert [m.splitlines()[2].split("Vdash ")[1] for m in decider.models_tex(tableau("p ∨ q → p ∧ q"))] == [
+    assert [m.splitlines()[2].split("Vdash ")[1] for m in decider.models_tex("p ∨ q → p ∧ q")] == [
         r"p, \lnot q$};", r"q, \lnot p$};"]
     # two worlds started from the first, and one from the second of them: a tree, without the
     # arrow that transitivity adds
-    [tex] = decider.models_tex(tableau("((□□Π ∧ ¬□Π) → Π) ∧ (Π → □Π) → □Π"))
+    [tex] = decider.models_tex("((□□Π ∧ ¬□Π) → Π) ∧ (Π → □Π) → □Π")
     arrows = [line.strip() for line in tex.splitlines() if "draw" in line]
     assert arrows == [r"\draw[->] (w0.south) -- (w1.north);", r"\draw[->] (w0.south) -- (w2.north);", r"\draw[->] (w2.south) -- (w3.north);"]
     assert tex.count(r"\Vdash \lnot \Pi$") == 3 and "(w2.east)" not in tex

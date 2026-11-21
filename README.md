@@ -9,18 +9,23 @@ of Rosser sentences, which is GL (Gödel–Löb provability logic) with `□A �
 from rtableau import Decider
 
 with Decider("/path/to/decide-provability") as d:
-    t = d.tableau("⊡(Π ↔ □□Π ≺ □Π) → □Π")   # the tableau as a Lean file: the Parikh sentence is provably provable
-    d.closed(t)                              # True: it closed, so the sentence is a theorem of R⁻
-    print(d.tex(t))                          # the tableau as a prooftree of the LaTeX package prooftrees
-    print(d.sentence_tex(t))                 # the sentence in LaTeX
+    parikh = "⊡(Π ↔ □□Π ≺ □Π) → □Π"   # the Parikh sentence is provably provable
+    d.closed(parikh)                   # True: its tableau closes, so it is a theorem of R⁻
+    print(d.tex(parikh))               # the tableau as a prooftree of the LaTeX package prooftrees
+    print(d.sentence_tex(parikh))      # the sentence in LaTeX
+    print(d.lean(parikh))              # the tableau as a Lean file
 ```
+
+A tableau is spoken of by its sentence. Nothing is kept of it: Lean builds it for each thing
+that is asked of it, in well under a millisecond for a sentence like these, where the request
+itself takes a few milliseconds.
 
 A tableau that doesn't close has open branches, and `models_tex` draws the model each describes,
 as a list, from the leftmost branch to the rightmost, with one model for branches that are
-drawn the same. The list is empty if the tableau closed.
+drawn the same. The list is empty if the tableau closes.
 
 ```python
-    for model in d.models_tex(d.tableau("□p → p")):   # LaTeX tikzpictures: here, one
+    for model in d.models_tex("□p → p"):   # LaTeX tikzpictures: here, one
         print(model)
 ```
 
@@ -50,31 +55,30 @@ GL's.
 
 ```python
 with Decider("/path/to/decide-provability") as d:
-    d.closed(d.tableau("□p ≺ □q ∧ □q ≺ □r → □p ≺ □r"))   # True: a theorem of R⁻
-    d.closed(d.tableau("□⊤ ≺ □⊥"))                       # False: not a theorem of R⁻
+    d.closed("□p ≺ □q ∧ □q ≺ □r → □p ≺ □r")   # True: a theorem of R⁻
+    d.closed("□⊤ ≺ □⊥")                       # False: not a theorem of R⁻
 ```
 
 ```python
 with Decider("/path/to/decide-provability") as d:
-    d.closed(d.tableau("□(□p → p) → □p"))   # True: a theorem of GL
-    d.closed(d.tableau("□p → p"))           # False: not a theorem of GL
+    d.closed("□(□p → p) → □p")   # True: a theorem of GL
+    d.closed("□p → p")           # False: not a theorem of GL
 ```
 
-The Lean file says, above its tableau, which of these it shows.
+The Lean file that `lean` gives defines the tableau, as `t`, and says above it which of these it
+shows. It is a record of the tableau, for a reader or for Lean, in the decider's project; Lean
+is much slower to read it than to build the tableau, so the wrapper has no use for it.
 
 A `Decider` runs the [Lean REPL](https://github.com/augustepoiroux/repl) in the decider's
 project, with its library imported, and talks to it until the `with` block ends. It is given
 the directory of a checkout of that Lean project, which it builds, with `lake build`, if it is
-not built: there is no default. The REPL starts in a second once built. A tableau is a Lean
-file, and Lean is much slower to read the file of one than to build it, so a `Decider` has a
-tableau that it built itself built again, from its sentence, for whatever is asked of it, and
-only has Lean read a file that came from elsewhere. A sentence letter is
+not built: there is no default. The REPL starts in a second once built. A sentence letter is
 any run of characters other than whitespace, parentheses and the connectives, and `tex` and
 `sentence_tex` print its Greek letters and other such characters as LaTeX commands, `φ` as
 `\varphi`, with `pylatexenc`. `¬ □ ◇ ⊡` bind tightest, then `≺` and `≼`, then `∧`, `∨`, `→`,
 `↔`, and what `≺` and `≼` compare must be written as boxed formulas: `□p ≺ □q ∧ r` is
-`(□p ≺ □q) ∧ r`, and `¬□p ≺ □q` doesn't parse, but `¬(□p ≺ □q)` does. `tableau` raises
-`ValueError` if the sentence doesn't parse.
+`(□p ≺ □q) ∧ r`, and `¬□p ≺ □q` doesn't parse, but `¬(□p ≺ □q)` does. Each method raises
+`ValueError` if its sentence doesn't parse.
 
 ## Setup
 
@@ -98,5 +102,5 @@ that each closes or doesn't, so a sentence is added with its verdict.
 non-theorems, and checks the tableaux with `tests/witness_semantics.py`, which decides each of
 its sentences again from Guaspari and Solovay's models of R⁻, by brute force, and sentences at
 random too: the two must agree. That search is exponential, so it is for small sentences. It
-also has Lean read the files of some tableaux, as it would a file that the decider didn't
-print, which the other tests don't do.
+also has Lean read the Lean files of some tableaux and print them again, which must give the
+file: nothing else reads one.

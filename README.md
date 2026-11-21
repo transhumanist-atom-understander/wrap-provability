@@ -76,7 +76,8 @@ any run of characters other than whitespace, parentheses and the connectives, an
 ## Setup
 
 Check out the decider. It requires the REPL as a Lake dependency, at the tag for its toolchain,
-so it is fetched and built with the project and nothing is fetched from Python;
+and builds it as an executable of its own, with the library compiled in, so it is fetched and
+built with the project and nothing is fetched from Python;
 [`lean-interact`](https://github.com/augustepoiroux/LeanInteract) is pointed at that checkout.
 `lake` is run in the project's directory, so it must be on the path, as elan installs it.
 

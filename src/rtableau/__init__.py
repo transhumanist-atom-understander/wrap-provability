@@ -14,7 +14,7 @@ GL's.
 
 `decider` is the directory of a checkout of the Lean project `decide-provability`; there is no
 default, it must be given. A `Decider` builds the project, with `lake build`, and runs the Lean
-REPL that the project requires in it, through `lean-interact`, with the project's library
+REPL that the project builds in it, through `lean-interact`, with the project's library
 imported; after that every request is fast.
 """
 
@@ -35,7 +35,9 @@ class LeanError(Exception):
 class Decider(LeanServer):
     """The Lean REPL run in `decide-provability`, at `project`, after `lake build` there, and
     spoken to until the `with` block ends. Each request is a Lean file importing the project's
-    library, `RTableau`, which the REPL loads once, at the start, and reuses."""
+    library, `RTableau`, which the REPL loads once, at the start, and reuses. The REPL is the
+    project's own executable, which has the library compiled in: the Lean it evaluates is
+    interpreted, but what that calls of the library is not."""
 
     def __init__(self, project):
         lean = LocalProject(directory=project, auto_build=False)
@@ -43,7 +45,7 @@ class Decider(LeanServer):
             lean.build(verbose=False)
         except subprocess.CalledProcessError:
             raise LeanError(f"`lake build` in {project} failed: run it there to see why") from None
-        super().__init__(LeanREPLConfig(project=lean, local_repl_path=Path(project, ".lake/packages/REPL")))
+        super().__init__(LeanREPLConfig(project=lean, local_repl_path=Path(project), build_repl=False))
         self._run("import RTableau")
 
     def _run(self, source):

@@ -65,23 +65,31 @@ class Decider(LeanServer):
             raise LeanError("\n".join(m.data for m in errors))
         return reply
 
+    def _eval(self, command):
+        """What `#eval command` prints, where `command` is of a sentence; raises `ValueError`
+        with the parse error if the sentence doesn't parse."""
+        try:
+            reply = self._run(f"#eval {command}", self._library)
+        except LeanError as e:
+            raise ValueError(str(e)) from None
+        return "".join(m.data for m in reply.messages if m.severity == "info")
+
     def _decide(self, sentence, show):
         """What the Lean function `show` makes of the tableau for `sentence`, which Lean builds
         for it. Lean prints it as a string literal, which is on one line: the REPL takes time
         that is quadratic in the lines of what is printed, minutes for a tableau of 100,000."""
-        try:
-            reply = self._run(f"#eval Tableau.decide {json.dumps(sentence, ensure_ascii=False)} (String.quote ∘ {show})", self._library)
-        except LeanError as e:
-            raise ValueError(str(e)) from None
-        [literal] = [m.data for m in reply.messages if m.severity == "info"]
+        literal = self._eval(f"Tableau.decide {json.dumps(sentence, ensure_ascii=False)} (String.quote ∘ {show})")
         escapes = {"n": "\n", "t": "\t"}
         return re.sub(r"\\(x[0-9a-f]{2}|.)", lambda m: chr(int(m[1][1:], 16)) if len(m[1]) == 3 else escapes.get(m[1], m[1]), literal[1:-1]).strip()
 
     def _tex(self, sentence, show):
-        """`_decide`, with the Greek letters and other such characters of what it prints as
-        LaTeX commands, for math mode."""
-        tex = unicode_to_latex(self._decide(sentence, show), non_ascii_only=True)
-        return re.sub(r"\\ensuremath\{([^{}]*)\}", r"\1", tex)
+        """The LaTeX that the Lean function `show` makes of the tableau for `sentence`, in a
+        LaTeX style, with the Greek letters and other such characters of its sentence letters
+        as LaTeX commands, for math mode. Lean gives the sentence letters, and the LaTeX as a
+        format string with a field for each: only the letters are turned into LaTeX here."""
+        letters = self._eval(f"Tableau.letters {json.dumps(sentence, ensure_ascii=False)}").split(" ")
+        letters = [re.sub(r"\\ensuremath\{([^{}]*)\}", r"\1", unicode_to_latex(a, non_ascii_only=True)) for a in letters]
+        return self._decide(sentence, f"(·.format {show})").format(*letters)
 
     def closed(self, sentence):
         """Whether the tableau for `sentence` closes: the sentence is a theorem of R⁻, and of
@@ -90,11 +98,11 @@ class Decider(LeanServer):
 
     def tex(self, sentence):
         """The tableau for `sentence` as a `prooftree` of the LaTeX package `prooftrees`."""
-        return self._tex(sentence, "(·.tex)")
+        return self._tex(sentence, "(fun t s => t.tex s)")
 
     def sentence_tex(self, sentence):
         """`sentence` in LaTeX, for math mode."""
-        return self._tex(sentence, "(·.sentence.render .tex)")
+        return self._tex(sentence, "(fun t s => t.sentence.render s)")
 
     def models_tex(self, sentence):
         """The models that the open branches of the tableau for `sentence` describe, each as a
@@ -107,7 +115,7 @@ class Decider(LeanServer):
         countermodel, a model of R⁻, however the letters that a world says nothing of are valued
         there; the comparisons it says nothing of are settled by how the boxed formulas came to
         hold on the way down to it."""
-        printed = self._tex(sentence, '("\\n".intercalate ·.modelsTex)')
+        printed = self._tex(sentence, '(fun t s => "\\n".intercalate (t.modelsTex s))')
         return [model.strip() for model in printed.split("\n\n") if model.strip()]
 
     def lean(self, sentence):

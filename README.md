@@ -73,9 +73,12 @@ A `Decider` runs the [Lean REPL](https://github.com/augustepoiroux/repl) in the 
 project, with its library imported, and talks to it until the `with` block ends. It is given
 the directory of a checkout of that Lean project, which it builds, with `lake build`, if it is
 not built: there is no default. The REPL starts in a second once built. A sentence letter is
-any run of characters other than whitespace, parentheses and the connectives, and `tex` and
-`sentence_tex` print its Greek letters and other such characters as LaTeX commands, `φ` as
-`\varphi`, with `pylatexenc`. `¬ □ ◇ ⊡` bind tightest, then `≺` and `≼`, then `∧`, `∨`, `→`,
+any run of characters other than whitespace, parentheses and the connectives, and `tex`,
+`sentence_tex` and `models_tex` print its Greek letters and other such characters as LaTeX
+commands, `φ` as `\varphi`, with `pylatexenc`; a letter can be LaTeX to begin with, `\varphi`
+or `p_{1}`, and is printed as it is. Lean gives the sentence letters, and the LaTeX as a format
+string with a field for each, so only the letters are turned into LaTeX, and the rest is as
+Lean has it. `¬ □ ◇ ⊡` bind tightest, then `≺` and `≼`, then `∧`, `∨`, `→`,
 `↔`, and what `≺` and `≼` compare must be written as boxed formulas: `□p ≺ □q ∧ r` is
 `(□p ≺ □q) ∧ r`, and `¬□p ≺ □q` doesn't parse, but `¬(□p ≺ □q)` does. Each method raises
 `ValueError` if its sentence doesn't parse.

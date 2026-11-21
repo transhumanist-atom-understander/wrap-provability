@@ -97,6 +97,20 @@ def test_tex(decider):
     assert tex.startswith(r"\begin{prooftree}") and r"[{\lnot \Box \varphi, 0}" in tex
 
 
+def test_letters(decider):
+    """A sentence letter's Greek letters and other such characters are LaTeX commands in LaTeX,
+    and the rest of it is as it is: its braces, and LaTeX that it has already."""
+    assert decider.sentence_tex(r"□p_{1} → φ1 ∨ \varphi ∨ {0}") == r"\Box p_{1} \to (\varphi1 \lor (\varphi \lor {0}))"
+    assert r"[{\lnot (p_{1} \to \varphi), 0}" in decider.tex("p_{1} → φ")
+    [model] = decider.models_tex("α_{2}")
+    assert r"{$\,\Vdash \lnot \alpha_{2}$}" in model
+    # no letter at all, and more than ten
+    assert decider.sentence_tex("□⊥ → ⊥") == r"\Box \bot \to \bot"
+    letters = "a b c d e f g h i j k φ".split()
+    assert decider.sentence_tex(" ∧ ".join(letters)).count(r"\varphi") == 1
+    assert decider.sentence_tex(" ∧ ".join(reversed(letters))).startswith(r"\varphi \land (k \land (j ")
+
+
 def test_claim(decider):
     """A tableau for a sentence of GL claims that it is a theorem of GL, or that it is not."""
     assert "□(□p → p) → □p is a theorem of GL" in decider.lean("□(□p → p) → □p")

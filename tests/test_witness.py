@@ -196,6 +196,22 @@ def test_tex(tableau, decider):
     assert r"[{(\Box \psi \preccurlyeq \Box \varphi) \lor \lnot \Box \varphi, 0}" in tex
 
 
+@pytest.mark.parametrize("sentence", [
+    "□(□p → p) → □p", "◇p → □◇p", "((p ↔ q) ↔ r) ↔ (p ↔ (q ↔ r))", "(□p ∨ □q) → □(p ∨ ⊥ ∨ q)",
+    "⊡(Π ↔ □□Π ≺ □Π) → □Π", "¬(□p ≺ □q ∧ □q ≺ □r ∧ □r ≺ □p)", "□p ≼ □q → □p ≺ □q"])
+def test_file(tableau, decider, sentence):
+    """A tableau is a Lean file. The decider doesn't have Lean read a file that it printed, but
+    builds its tableau again; it does a file that it didn't print, and what Lean reads there is
+    the tableau that was built."""
+    built = tableau(sentence)
+    read = built + "\n"
+    assert built in decider._sentences and read not in decider._sentences
+    assert decider.closed(read) == decider.closed(built)
+    assert decider.sentence_tex(read) == decider.sentence_tex(built)
+    assert decider.tex(read) == decider.tex(built)
+    assert decider.models_tex(read) == decider.models_tex(built)
+
+
 def test_claim(tableau):
     """A tableau that closes claims a theorem of R⁻, and one that doesn't a non-theorem."""
     assert "□(□¬⊥ ≺ □⊥) is a theorem of R⁻" in tableau("□(□⊤ ≺ □⊥)")

@@ -65,7 +65,10 @@ The Lean file says, above its tableau, which of these it shows.
 A `Decider` runs the [Lean REPL](https://github.com/augustepoiroux/repl) in the decider's
 project, with its library imported, and talks to it until the `with` block ends. It is given
 the directory of a checkout of that Lean project, which it builds, with `lake build`, if it is
-not built: there is no default. The REPL starts in a second once built. A sentence letter is
+not built: there is no default. The REPL starts in a second once built. A tableau is a Lean
+file, and Lean is much slower to read the file of one than to build it, so a `Decider` has a
+tableau that it built itself built again, from its sentence, for whatever is asked of it, and
+only has Lean read a file that came from elsewhere. A sentence letter is
 any run of characters other than whitespace, parentheses and the connectives, and `tex` and
 `sentence_tex` print its Greek letters and other such characters as LaTeX commands, `φ` as
 `\varphi`, with `pylatexenc`. `¬ □ ◇ ⊡` bind tightest, then `≺` and `≼`, then `∧`, `∨`, `→`,
@@ -94,4 +97,6 @@ that each closes or doesn't, so a sentence is added with its verdict.
 `tests/test_witness.py` does the same for sentences with comparisons, theorems of R⁻ and
 non-theorems, and checks the tableaux with `tests/witness_semantics.py`, which decides each of
 its sentences again from Guaspari and Solovay's models of R⁻, by brute force, and sentences at
-random too: the two must agree. That search is exponential, so it is for small sentences.
+random too: the two must agree. That search is exponential, so it is for small sentences. It
+also has Lean read the files of some tableaux, as it would a file that the decider didn't
+print, which the other tests don't do.

@@ -46,6 +46,7 @@ class Decider(LeanServer):
         except subprocess.CalledProcessError:
             raise LeanError(f"`lake build` in {project} failed: run it there to see why") from None
         super().__init__(LeanREPLConfig(project=lean, local_repl_path=Path(project), build_repl=False))
+        self._sentences = {}
         self._run("import RTableau")
 
     def _run(self, source):
@@ -58,10 +59,19 @@ class Decider(LeanServer):
             raise LeanError("\n".join(m.data for m in errors))
         return "".join(m.data for m in reply.messages if m.severity == "info")
 
-    def _tex(self, source):
-        """`_run`, with the Greek letters and other such characters of what it prints as LaTeX
-        commands, for math mode."""
-        tex = unicode_to_latex(self._run(source), non_ascii_only=True)
+    def _print(self, tableau, value):
+        """What Lean prints for `value`, an expression in `t`, the tableau of the Lean file
+        `tableau`. Lean builds a tableau much faster than it reads the file of one, so a
+        tableau that this decider built is built again, from its sentence, and only another is
+        read from its file."""
+        if tableau in self._sentences:
+            return self._run(f"import RTableau\n#eval do let t ← Tableau.ofSentence {self._sentences[tableau]}; IO.print ({value})")
+        return self._run(f"{tableau}\n#eval IO.print ({value})")
+
+    def _tex(self, tableau, value):
+        """`_print`, with the Greek letters and other such characters of what it prints as
+        LaTeX commands, for math mode."""
+        tex = unicode_to_latex(self._print(tableau, value), non_ascii_only=True)
         return re.sub(r"\\ensuremath\{([^{}]*)\}", r"\1", tex)
 
     def tableau(self, sentence):
@@ -69,24 +79,27 @@ class Decider(LeanServer):
         than whitespace, parentheses and the connectives, `¬ □ ◇ ⊡` bind tightest, then `≺` and
         `≼`, which compare boxed formulas, then `∧`, `∨`, `→`, `↔`, each associating to the
         right: a Lean file defining it as `t`."""
+        quoted = json.dumps(sentence, ensure_ascii=False)
         try:
-            return self._run(f"import RTableau\n#eval Tableau.decide {json.dumps(sentence, ensure_ascii=False)}")
+            tableau = self._run(f"import RTableau\n#eval Tableau.decide {quoted}")
         except LeanError as e:
             raise ValueError(str(e)) from None
+        self._sentences[tableau] = quoted
+        return tableau
 
     def closed(self, tableau):
         """Whether the tableau of the Lean file `tableau` closed: its sentence is a theorem of
         R⁻, and of GL if it has no comparison, if it did, and not a theorem if it didn't."""
-        return self._run(tableau + "\n#eval IO.print t.tree.isClosed") == "true"
+        return self._print(tableau, "t.tree.isClosed") == "true"
 
     def tex(self, tableau):
         """The tableau of the Lean file `tableau` as a `prooftree` of the LaTeX package
         `prooftrees`."""
-        return self._tex(tableau + "\n#eval IO.print t.tex")
+        return self._tex(tableau, "t.tex")
 
     def sentence_tex(self, tableau):
         """The sentence of the Lean file `tableau` in LaTeX, for math mode."""
-        return self._tex(tableau + "\n#eval IO.print (t.sentence.render .tex)")
+        return self._tex(tableau, "t.sentence.render .tex")
 
     def models_tex(self, tableau):
         """The models that the open branches of the tableau of the Lean file `tableau`
@@ -99,5 +112,5 @@ class Decider(LeanServer):
         countermodel, a model of R⁻, however the letters that a world says nothing of are valued
         there; the comparisons it says nothing of are settled by how the boxed formulas came to
         hold on the way down to it."""
-        printed = self._tex(tableau + '\n#eval IO.print ("\\n".intercalate t.modelsTex)')
+        printed = self._tex(tableau, '"\\n".intercalate t.modelsTex')
         return [model.strip() for model in printed.split("\n\n") if model.strip()]

@@ -124,19 +124,19 @@ SENTENCES = THEOREMS + NON_THEOREMS
 
 
 @pytest.mark.parametrize("sentence", THEOREMS)
-def test_theorems(tableau, decider, sentence):
-    assert decider.closed(tableau(sentence))
+def test_theorems(decider, sentence):
+    assert decider.closed(sentence)
 
 
 @pytest.mark.parametrize("sentence", NON_THEOREMS)
-def test_non_theorems(tableau, decider, sentence):
-    assert not decider.closed(tableau(sentence))
+def test_non_theorems(decider, sentence):
+    assert not decider.closed(sentence)
 
 
 @pytest.mark.parametrize("A", SENTENCES)
-def test_models(tableau, A):
+def test_models(decider, A):
     """The lists are right about R⁻."""
-    assert theorem(sentence(tableau(A))) == (A in THEOREMS)
+    assert theorem(sentence(decider.lean(A))) == (A in THEOREMS)
 
 
 def sentences(seed, count, depth):
@@ -165,51 +165,60 @@ def sentences(seed, count, depth):
 
 
 @pytest.mark.parametrize("A", sentences(seed=1979, count=300, depth=4))
-def test_random(tableau, decider, A):
+def test_random(decider, A):
     """On sentences at random, too, the decider proves the theorems of R⁻ and no others."""
-    t = tableau(A)
-    assert decider.closed(t) == theorem(sentence(t))
+    assert decider.closed(A) == theorem(sentence(decider.lean(A)))
 
 
 @pytest.mark.parametrize("sentence", ["□(p", "p ≺ q", "□p ≺ q", "¬□p ≺ □q", "□p ≺ □q ≺ □r", "□p ≼", "≺ □p"])
 def test_parse_error(decider, sentence):
     """What `≺` and `≼` compare must be written as boxed formulas."""
     with pytest.raises(ValueError):
-        decider.tableau(sentence)
+        decider.closed(sentence)
 
 
-def test_parse(tableau, decider):
+def test_parse(decider):
     """Comparisons bind tighter than the binary connectives, and their boxes take what `□`
     takes."""
-    spelled = decider.sentence_tex(tableau("□p ≺ □q ∧ □¬p ≼ □□q → r"))
-    assert spelled == decider.sentence_tex(tableau("((□p ≺ □q) ∧ (□(¬p) ≼ □(□q))) → r"))
+    spelled = decider.sentence_tex("□p ≺ □q ∧ □¬p ≼ □□q → r")
+    assert spelled == decider.sentence_tex("((□p ≺ □q) ∧ (□(¬p) ≼ □(□q))) → r")
 
 
-def test_tex(tableau, decider):
+def test_tex(decider):
     """A comparison that fails is split into its first formula failing and the converse
     comparison; one that holds at a world held at the world that started it, or its second
     formula didn't hold there."""
-    t = tableau("□(□φ ≺ □ψ)")
-    assert decider.sentence_tex(t) == r"\Box (\Box \varphi \prec \Box \psi)"
-    tex = decider.tex(t)
-    assert tex.startswith(r"\begin{prooftree}") and r"[{\Box \psi \preccurlyeq \Box \varphi, 1}" in tex
-    assert r"[{(\Box \psi \preccurlyeq \Box \varphi) \lor \lnot \Box \varphi, 0}" in tex
+    assert decider.sentence_tex("□(□φ ≺ □ψ)") == r"\Box (\Box \ensuremath{\varphi} \prec \Box \ensuremath{\psi})"
+    tex = decider.tex("□(□φ ≺ □ψ)")
+    assert tex.startswith(r"\begin{prooftree}") and r"[{\Box \ensuremath{\psi} \preccurlyeq \Box \ensuremath{\varphi}, 1}" in tex
+    assert r"[{(\Box \ensuremath{\psi} \preccurlyeq \Box \ensuremath{\varphi}) \lor \lnot \Box \ensuremath{\varphi}, 0}" in tex
 
 
-def test_claim(tableau):
+@pytest.mark.parametrize("sentence", [
+    "□(□p → p) → □p", "◇p → □◇p", "((p ↔ q) ↔ r) ↔ (p ↔ (q ↔ r))", "(□p ∨ □q) → □(p ∨ ⊥ ∨ q)",
+    "⊡(Π ↔ □□Π ≺ □Π) → □Π", "¬(□p ≺ □q ∧ □q ≺ □r ∧ □r ≺ □p)", "□p ≼ □q → □p ≺ □q"])
+def test_lean(decider, sentence):
+    """The Lean file of a tableau is one that Lean reads, and the tableau it defines is the one
+    it is the file of: Lean, having read it, prints it again."""
+    file = decider.lean(sentence)
+    [printed] = decider._run(file + "\n#eval IO.print t.lean").messages
+    assert printed.data == file
+
+
+def test_claim(decider):
     """A tableau that closes claims a theorem of R⁻, and one that doesn't a non-theorem."""
-    assert "□(□¬⊥ ≺ □⊥) is a theorem of R⁻" in tableau("□(□⊤ ≺ □⊥)")
-    assert "□¬⊥ ≺ □⊥ is not a theorem of R⁻" in tableau("□⊤ ≺ □⊥")
+    assert "□(□¬⊥ ≺ □⊥) is a theorem of R⁻" in decider.lean("□(□⊤ ≺ □⊥)")
+    assert "□¬⊥ ≺ □⊥ is not a theorem of R⁻" in decider.lean("□⊤ ≺ □⊥")
 
 
-def test_circle(tableau):
+def test_circle(decider):
     """A branch closes on comparisons at a world that go round, one of them strict."""
-    assert "(.cycle 0 [(.prec " in tableau("¬(□p ≺ □q ∧ □q ≺ □r ∧ □r ≺ □p)")
+    assert "(.cycle 0 [(.prec " in decider.lean("¬(□p ≺ □q ∧ □q ≺ □r ∧ □r ≺ □p)")
 
 
-def test_models_tex(tableau, decider):
-    [tex] = decider.models_tex(tableau("□p ≼ □q → □p ≺ □q"))
+def test_models_tex(decider):
+    [tex] = decider.models_tex("□p ≼ □q → □p ≺ □q")
     # the comparisons are named where the worlds are, and spelled out below them: the one that
     # fails, and its converse, which holds
-    assert r"{$\,\Vdash c_{1}, \lnot c_{2}, c_{3}$}" in tex
+    assert r"$\Vdash c_{1}, \lnot c_{2}, c_{3}$" in tex
     assert r"{$c_{1} = \Box p \preccurlyeq \Box q$}" in tex and r"{$c_{3} = \Box q \preccurlyeq \Box p$}" in tex

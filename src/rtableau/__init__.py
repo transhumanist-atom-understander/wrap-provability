@@ -1,11 +1,11 @@
 """Witness comparison tableaux, built by Lean.
 
     with Decider(decider) as d:
-        t = d.tableau("⊡(Π ↔ □□Π ≺ □Π) → □Π")   # the tableau as a Lean file
-        d.closed(t)                              # whether it closed, so the sentence is a theorem of R⁻
-        d.tex(t)                                 # the tableau as a LaTeX prooftree
-        d.sentence_tex(t)                        # the sentence in LaTeX
-        d.models_tex(d.tableau("□p → p"))        # the models of its open branches as LaTeX tikzpictures
+        d.closed("⊡(Π ↔ □□Π ≺ □Π) → □Π")         # whether its tableau closes, so it is a theorem of R⁻
+        d.tex("⊡(Π ↔ □□Π ≺ □Π) → □Π")            # the tableau as a LaTeX prooftree
+        d.sentence_tex("⊡(Π ↔ □□Π ≺ □Π) → □Π")   # the sentence in LaTeX
+        d.models_tex("□p → p")                    # the models of its open branches as LaTeX trees
+        d.lean("□p → p")                          # the tableau as a Lean file
 
 The sentences are those of Guaspari and Solovay's R⁻: GL's, with the witness comparisons
 `□A ≺ □B` and `□A ≼ □B`. The rules for comparisons are complete for R⁻, so a tableau closes if
@@ -14,7 +14,7 @@ GL's.
 
 `decider` is the directory of a checkout of the Lean project `decide-provability`; there is no
 default, it must be given. A `Decider` builds the project, with `lake build`, and runs the Lean
-REPL that the project requires in it, through `lean-interact`, with the project's library
+REPL that the project builds in it, through `lean-interact`, with the project's library
 imported; after that every request is fast.
 """
 
@@ -34,8 +34,17 @@ class LeanError(Exception):
 
 class Decider(LeanServer):
     """The Lean REPL run in `decide-provability`, at `project`, after `lake build` there, and
-    spoken to until the `with` block ends. Each request is a Lean file importing the project's
-    library, `RTableau`, which the REPL loads once, at the start, and reuses."""
+    spoken to until the `with` block ends. It imports the project's library, `RTableau`, once,
+    at the start, and each request is evaluated where that left it. The REPL is the project's
+    own executable, which has the library compiled in: the Lean it evaluates is interpreted,
+    but what that calls of the library is not.
+
+    A tableau is spoken of by its sentence, and nothing is kept of it: Lean builds it for each
+    thing that is asked of it, which takes a small part of the time the request does. A
+    sentence letter is any run of characters other than whitespace, parentheses and the
+    connectives, `¬ □ ◇ ⊡` bind tightest, then `≺` and `≼`, which compare boxed formulas, then
+    `∧`, `∨`, `→`, `↔`, each associating to the right. Each method raises `ValueError` if its
+    sentence doesn't parse."""
 
     def __init__(self, project):
         lean = LocalProject(directory=project, auto_build=False)
@@ -43,59 +52,79 @@ class Decider(LeanServer):
             lean.build(verbose=False)
         except subprocess.CalledProcessError:
             raise LeanError(f"`lake build` in {project} failed: run it there to see why") from None
-        super().__init__(LeanREPLConfig(project=lean, local_repl_path=Path(project, ".lake/packages/REPL")))
-        self._run("import RTableau")
+        super().__init__(LeanREPLConfig(project=lean, local_repl_path=Path(project), build_repl=False))
+        self._library = self._run("import RTableau").env
 
-    def _run(self, source):
-        """What the `#eval`s of the Lean file `source` print; raises `LeanError` with Lean's
-        errors."""
-        reply = self.run(Command(cmd=source))
+    def _run(self, source, env=None):
+        """Lean's reply to the Lean file `source`, or to `source` where the reply with the
+        environment `env` left off; raises `LeanError` with Lean's errors."""
+        reply = self.run(Command(cmd=source, env=env))
         if isinstance(reply, REPLError):
             raise LeanError(reply.message)
         if errors := reply.get_errors():
             raise LeanError("\n".join(m.data for m in errors))
-        return "".join(m.data for m in reply.messages if m.severity == "info")
+        return reply
 
-    def _tex(self, source):
-        """`_run`, with the Greek letters and other such characters of what it prints as LaTeX
-        commands, for math mode."""
-        tex = unicode_to_latex(self._run(source), non_ascii_only=True)
-        return re.sub(r"\\ensuremath\{([^{}]*)\}", r"\1", tex)
-
-    def tableau(self, sentence):
-        """The tableau for `sentence`, where a sentence letter is any run of characters other
-        than whitespace, parentheses and the connectives, `¬ □ ◇ ⊡` bind tightest, then `≺` and
-        `≼`, which compare boxed formulas, then `∧`, `∨`, `→`, `↔`, each associating to the
-        right: a Lean file defining it as `t`."""
+    def _eval(self, command):
+        """What `#eval command` prints, where `command` is of a sentence; raises `ValueError`
+        with the parse error if the sentence doesn't parse."""
         try:
-            return self._run(f"import RTableau\n#eval Tableau.decide {json.dumps(sentence, ensure_ascii=False)}")
+            reply = self._run(f"#eval {command}", self._library)
         except LeanError as e:
             raise ValueError(str(e)) from None
+        return "".join(m.data for m in reply.messages if m.severity == "info")
 
-    def closed(self, tableau):
-        """Whether the tableau of the Lean file `tableau` closed: its sentence is a theorem of
-        R⁻, and of GL if it has no comparison, if it did, and not a theorem if it didn't."""
-        return self._run(tableau + "\n#eval IO.print t.tree.isClosed") == "true"
+    def _decide(self, sentence, show):
+        """What the Lean function `show` makes of the tableau for `sentence`, which Lean builds
+        for it. Lean prints it as a string literal, which is on one line: the REPL takes time
+        that is quadratic in the lines of what is printed, minutes for a tableau of 100,000."""
+        literal = self._eval(f"Tableau.decide {json.dumps(sentence, ensure_ascii=False)} (String.quote ∘ {show})")
+        escapes = {"n": "\n", "t": "\t"}
+        return re.sub(r"\\(x[0-9a-f]{2}|.)", lambda m: chr(int(m[1][1:], 16)) if len(m[1]) == 3 else escapes.get(m[1], m[1]), literal[1:-1]).strip()
 
-    def tex(self, tableau):
-        """The tableau of the Lean file `tableau` as a `prooftree` of the LaTeX package
-        `prooftrees`."""
-        return self._tex(tableau + "\n#eval IO.print t.tex")
+    def _letters(self, sentence):
+        """The sentence letters of `sentence`, as Lean gives them, with their Greek letters and
+        other such characters as LaTeX commands, as `pylatexenc` gives those: what goes in the
+        fields of the format strings that Lean gives LaTeX as. Only the letters are turned into
+        LaTeX here. It gives `φ` as `\\ensuremath{\\varphi}`, which is for LaTeX to compile, as
+        all the LaTeX here is: it is not for MathJax or KaTeX."""
+        letters = self._eval(f"Tableau.letters {json.dumps(sentence, ensure_ascii=False)}").split(" ")
+        return [unicode_to_latex(a, non_ascii_only=True) for a in letters]
 
-    def sentence_tex(self, tableau):
-        """The sentence of the Lean file `tableau` in LaTeX, for math mode."""
-        return self._tex(tableau + "\n#eval IO.print (t.sentence.render .tex)")
+    def _tex(self, sentence, show):
+        """The LaTeX that the Lean function `show` makes of the tableau for `sentence`, in a
+        LaTeX style, with its sentence letters as `_letters` has them."""
+        return self._decide(sentence, f"(·.format {show})").format(*self._letters(sentence))
 
-    def models_tex(self, tableau):
-        """The models that the open branches of the tableau of the Lean file `tableau`
-        describe, each as a `tikzpicture` of the LaTeX package `tikz`, which also needs
-        `amssymb`: a list, the branches from left to right, with one model for branches that
-        are drawn the same, and empty if the tableau closed. The worlds are drawn as a tree, with an arrow from each
-        to the worlds started from it, and stand for the transitive order that generates; by
-        each is what the branch says there of the sentence letters and the comparisons, which
-        are named `c₁`, `c₂` and so on there and spelled out below the worlds. Each is a
+    def closed(self, sentence):
+        """Whether the tableau for `sentence` closes: the sentence is a theorem of R⁻, and of
+        GL if it has no comparison, if it does, and not a theorem if it doesn't."""
+        return self._decide(sentence, "(toString ·.tree.isClosed)") == "true"
+
+    def tex(self, sentence):
+        """The tableau for `sentence` as a `prooftree` of the LaTeX package `prooftrees`."""
+        return self._tex(sentence, "(fun t s => t.tex s)")
+
+    def sentence_tex(self, sentence):
+        """`sentence` in LaTeX, for math mode. No tableau is built for it."""
+        return self._eval(f"Tableau.sentenceTex {json.dumps(sentence, ensure_ascii=False)}").format(*self._letters(sentence))
+
+    def models_tex(self, sentence):
+        """The models that the open branches of the tableau for `sentence` describe, each as a
+        tree of the LaTeX package `forest`, which also needs the package `amssymb` and the TikZ
+        library `shapes.multipart`: a list, the branches from left to right, with one model for branches that are drawn the same, and
+        empty if the tableau closes. The worlds are drawn as a tree, with an arrow from each to
+        the worlds started from it, and stand for the transitive order that generates; by each
+        is what the branch says there of the sentence letters and the comparisons, which are
+        named `c₁`, `c₂` and so on there and spelled out below the worlds. Each is a
         countermodel, a model of R⁻, however the letters that a world says nothing of are valued
         there; the comparisons it says nothing of are settled by how the boxed formulas came to
         hold on the way down to it."""
-        printed = self._tex(tableau + '\n#eval IO.print ("\\n".intercalate t.modelsTex)')
+        printed = self._tex(sentence, '(fun t s => "\\n".intercalate (t.modelsTex s))')
         return [model.strip() for model in printed.split("\n\n") if model.strip()]
+
+    def lean(self, sentence):
+        """The tableau for `sentence` as a Lean file, which defines it as `t` and says, above
+        it, what it shows: a record of the tableau, for a reader or for Lean. Lean is much
+        slower to read it than to build the tableau, so nothing here does."""
+        return self._decide(sentence, "Tableau.lean")

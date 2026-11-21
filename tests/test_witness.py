@@ -188,10 +188,10 @@ def test_tex(decider):
     """A comparison that fails is split into its first formula failing and the converse
     comparison; one that holds at a world held at the world that started it, or its second
     formula didn't hold there."""
-    assert decider.sentence_tex("□(□φ ≺ □ψ)") == r"\Box (\Box \varphi \prec \Box \psi)"
+    assert decider.sentence_tex("□(□φ ≺ □ψ)") == r"\Box (\Box \ensuremath{\varphi} \prec \Box \ensuremath{\psi})"
     tex = decider.tex("□(□φ ≺ □ψ)")
-    assert tex.startswith(r"\begin{prooftree}") and r"[{\Box \psi \preccurlyeq \Box \varphi, 1}" in tex
-    assert r"[{(\Box \psi \preccurlyeq \Box \varphi) \lor \lnot \Box \varphi, 0}" in tex
+    assert tex.startswith(r"\begin{prooftree}") and r"[{\Box \ensuremath{\psi} \preccurlyeq \Box \ensuremath{\varphi}, 1}" in tex
+    assert r"[{(\Box \ensuremath{\psi} \preccurlyeq \Box \ensuremath{\varphi}) \lor \lnot \Box \ensuremath{\varphi}, 0}" in tex
 
 
 @pytest.mark.parametrize("sentence", [

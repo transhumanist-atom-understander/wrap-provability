@@ -84,10 +84,11 @@ class Decider(LeanServer):
 
     def _letters(self, sentence):
         """The sentence letters of `sentence`, as Lean gives them, with their Greek letters and
-        other such characters as LaTeX commands, for math mode: what goes in the fields of the
-        format strings that Lean gives LaTeX as. Only the letters are turned into LaTeX here."""
+        other such characters as LaTeX commands, as `pylatexenc` gives those: what goes in the
+        fields of the format strings that Lean gives LaTeX as. Only the letters are turned into
+        LaTeX here."""
         letters = self._eval(f"Tableau.letters {json.dumps(sentence, ensure_ascii=False)}").split(" ")
-        return [re.sub(r"\\ensuremath\{([^{}]*)\}", r"\1", unicode_to_latex(a, non_ascii_only=True)) for a in letters]
+        return [unicode_to_latex(a, non_ascii_only=True) for a in letters]
 
     def _tex(self, sentence, show):
         """The LaTeX that the Lean function `show` makes of the tableau for `sentence`, in a

@@ -18,7 +18,6 @@ REPL that the project builds in it, through `lean-interact`, with the project's 
 imported; after that every request is fast.
 """
 
-import functools
 import json
 import re
 import subprocess
@@ -31,12 +30,6 @@ from pylatexenc.latexencode import unicode_to_latex
 
 class LeanError(Exception):
     """Lean rejected the source: the message is its errors."""
-
-
-@functools.cache
-def _latex(characters):
-    """The characters, none of them ASCII, as LaTeX commands, for math mode."""
-    return re.sub(r"\\ensuremath\{([^{}]*)\}", r"\1", unicode_to_latex(characters, non_ascii_only=True))
 
 
 class Decider(LeanServer):
@@ -86,9 +79,9 @@ class Decider(LeanServer):
 
     def _tex(self, sentence, show):
         """`_decide`, with the Greek letters and other such characters of what it prints as
-        LaTeX commands, for math mode. They are found first: `unicode_to_latex` takes time that
-        is quadratic in the length of what it is given."""
-        return re.sub(r"[^\x00-\x7f]+", lambda m: _latex(m[0]), self._decide(sentence, show))
+        LaTeX commands, for math mode."""
+        tex = unicode_to_latex(self._decide(sentence, show), non_ascii_only=True)
+        return re.sub(r"\\ensuremath\{([^{}]*)\}", r"\1", tex)
 
     def closed(self, sentence):
         """Whether the tableau for `sentence` closes: the sentence is a theorem of R⁻, and of

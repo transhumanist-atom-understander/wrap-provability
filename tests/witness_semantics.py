@@ -1,6 +1,9 @@
 """A check of the decider's tableaux for sentences with witness comparisons, that needs nothing
 from it but its sentence: `theorem` decides a sentence from Guaspari and Solovay's models of
 R⁻, by brute force, and a tableau closes exactly when it says so.
+
+And a check of what the decider says holds in a model, that needs nothing from it at all:
+`satisfied` works that out again, from what it is for a formula to hold at a world.
 """
 
 import functools
@@ -120,3 +123,73 @@ def theorem(A):
         return False
 
     return not node((("neg", A),), ())
+
+
+# One model
+#
+# A model as the decider has one, a Lean term: here a dict of a world's `letters`, its `order`,
+# lists of formulas `B` for the boxed formulas `□B` witnessed together, and the worlds it `sees`
+# just below it, each such a dict.
+
+
+def spelled(A):
+    """`A` written as a sentence, with parentheses around every formula of two."""
+    match A:
+        case ("atom", p):
+            return p
+        case ("bot",):
+            return "⊥"
+        case ("neg" | "box" | "dia", B):
+            return {"neg": "¬", "box": "□", "dia": "◇"}[A[0]] + spelled(B)
+        case ("prec" | "preceq", B, C):
+            return f"(□{spelled(B)} {'≺' if A[0] == 'prec' else '≼'} □{spelled(C)})"
+        case (connective, B, C):
+            return f"({spelled(B)} {dict(zip(['and', 'or', 'imp', 'iff'], '∧∨→↔'))[connective]} {spelled(C)})"
+
+
+def term(model):
+    """The Lean term for `model`."""
+    strings = lambda items: "[" + ", ".join(json.dumps(item, ensure_ascii=False) for item in items) + "]"
+    order = "[" + ", ".join(strings("□" + spelled(B) for B in together) for together in model["order"]) + "]"
+    sees = "[" + ", ".join(term(world) for world in model["sees"]) + "]"
+    return f"{{ letters := {strings(model['letters'])}, order := {order}, sees := {sees} }}"
+
+
+def satisfied(A, model):
+    """Whether `A` holds at the first world of `model`, straight from what that means: a formula
+    is asked of the worlds on the way down to one, the first world first."""
+
+    def below(world):
+        """The ways down from `world`, to each world below it."""
+        for next in world["sees"]:
+            yield [next]
+            yield from ([next, *rest] for rest in below(next))
+
+    def witnessed(B, way):
+        """When `□B` was witnessed on the `way` down: how far down, and where in the order of
+        the world there. `None` if it doesn't hold at the end of the way."""
+        for far in range(len(way)):
+            if true(("box", B), way[: far + 1]):
+                order = way[far]["order"]
+                return far, next((n for n, together in enumerate(order) if B in together), len(order))
+
+    def true(B, way):
+        match B:
+            case ("box", C):
+                return all(true(C, way + rest) for rest in below(way[-1]))
+            case ("dia", C):
+                return any(true(C, way + rest) for rest in below(way[-1]))
+            case ("prec" | "preceq", C, D):
+                c, d = witnessed(C, way), witnessed(D, way)
+                return c is not None and (d is None or (c < d if B[0] == "prec" else c <= d))
+            case ("neg", C):
+                return not true(C, way)
+            case ("atom", p):
+                return p in way[-1]["letters"]
+            case ("bot",):
+                return False
+            case (connective, C, D):
+                c, d = true(C, way), true(D, way)
+                return {"and": c and d, "or": c or d, "imp": not c or d, "iff": c == d}[connective]
+
+    return true(A, [model])

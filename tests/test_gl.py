@@ -85,7 +85,7 @@ def test_non_theorem(decider, sentence):
     assert not decider.closed(sentence)
 
 
-@pytest.mark.parametrize("method", ["closed", "tex", "sentence_tex", "models_tex", "lean"])
+@pytest.mark.parametrize("method", ["closed", "tex", "sentence_tex", "models_tex", "models_lean", "lean"])
 def test_parse_error(decider, method):
     with pytest.raises(ValueError):
         getattr(decider, method)("□(p")
@@ -104,8 +104,8 @@ def test_letters(decider):
     assert decider.sentence_tex(r"□p_{1} → φ1 ∨ \varphi ∨ {0}") == r"\Box p_{1} \to (\ensuremath{\varphi}1 \lor (\varphi \lor {0}))"
     assert decider.sentence_tex("φx → xφ") == r"\ensuremath{\varphi}x \to x\ensuremath{\varphi}"
     assert r"[{\lnot (p_{1} \to \ensuremath{\varphi}), 0}" in decider.tex("p_{1} → φ")
-    [model] = decider.models_tex("α_{2}")
-    assert r"$\Vdash \lnot \ensuremath{\alpha}_{2}$" in model
+    [model] = decider.models_tex("¬α_{2}")
+    assert r"$\Vdash \ensuremath{\alpha}_{2}$" in model
     # no letter at all, and more than ten
     assert decider.sentence_tex("□⊥ → ⊥") == r"\Box \bot \to \bot"
     letters = "a b c d e f g h i j k φ".split()
@@ -121,26 +121,30 @@ def test_claim(decider):
 
 def worlds(model):
     """The lines of a model's worlds: each a node of the tree, nested in the node of the world
-    that started it, which the indentation shows."""
+    just above it, which the indentation shows."""
     return [line for line in model.splitlines() if line.lstrip().startswith("[{$w_")]
 
 
 def test_models_tex(decider):
     assert decider.models_tex("□(□p → p) → □p") == []
+    # one world, where φ doesn't hold: by a world are the letters that do
     [model] = decider.models_tex("□φ → φ")
     assert model.startswith(r"\begin{forest}") and model.endswith(r"\end{forest}")
-    assert worlds(model) == [r"  [{$w_{0}$\nodepart{two}$\Vdash \lnot \ensuremath{\varphi}$}]"]
+    assert worlds(model) == [r"  [{$w_{0}$\nodepart{two}}]"]
+    [model] = decider.models_tex("φ → □φ")
+    assert worlds(model) == [r"  [{$w_{0}$\nodepart{two}$\Vdash \ensuremath{\varphi}$}", r"    [{$w_{1}$\nodepart{two}}]]"]
     # an open branch for each way that p ∨ q → p ∧ q fails
     assert [worlds(m) for m in decider.models_tex("p ∨ q → p ∧ q")] == [
-        [r"  [{$w_{0}$\nodepart{two}$\Vdash p, \lnot q$}]"], [r"  [{$w_{0}$\nodepart{two}$\Vdash q, \lnot p$}]"]]
-    # two worlds started from the first, and one from the second of them, which says nothing
-    # of Π: a tree, without the arrow that transitivity adds
+        [r"  [{$w_{0}$\nodepart{two}$\Vdash p$}]"], [r"  [{$w_{0}$\nodepart{two}$\Vdash q$}]"]]
+    # two worlds below the first, and one below the second of them: a tree, without the arrow
+    # that transitivity adds
     [model] = decider.models_tex("((□□Π ∧ ¬□Π) → Π) ∧ (Π → □Π) → □Π")
     assert worlds(model) == [
-        r"  [{$w_{0}$\nodepart{two}$\Vdash \lnot \ensuremath{\Pi}$}",
-        r"    [{$w_{1}$\nodepart{two}$\Vdash \lnot \ensuremath{\Pi}$}]",
+        r"  [{$w_{0}$\nodepart{two}}",
+        r"    [{$w_{1}$\nodepart{two}}]",
         r"    [{$w_{2}$\nodepart{two}}",
-        r"      [{$w_{3}$\nodepart{two}$\Vdash \lnot \ensuremath{\Pi}$}]]]"]
+        r"      [{$w_{3}$\nodepart{two}}]]]"]
     # the room a letter takes is the room it takes in print, however it was typed
-    [typed], [printed] = decider.models_tex(r"□\varphi ∨ □\psi"), decider.models_tex("□φ ∨ □ψ")
+    [typed], [printed] = decider.models_tex(r"¬(\varphi ∧ \psi)"), decider.models_tex("¬(φ ∧ ψ)")
+    assert r"$\Vdash \varphi, \psi$" in typed
     assert typed == printed.replace(r"\ensuremath{\varphi}", r"\varphi").replace(r"\ensuremath{\psi}", r"\psi")

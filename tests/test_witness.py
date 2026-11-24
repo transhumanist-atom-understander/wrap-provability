@@ -217,8 +217,11 @@ def test_circle(decider):
 
 
 def test_models_tex(decider):
+    """A model has an order at a world where the branch has one boxed formula witnessed before
+    another: the boxed formulas are named where the worlds are, and spelled out below them."""
+    [tex] = decider.models_tex("□p ≼ □q ∧ □q ≼ □p → ¬(□p ≺ □r)")
+    assert r"$\Vdash b_{1} \approx b_{2} \prec b_{3}$" in tex
+    assert r"{$b_{1} = \Box p$}" in tex and r"{$b_{3} = \Box r$}" in tex
+    # and none where it has them witnessed together, as they are with no order
     [tex] = decider.models_tex("□p ≼ □q → □p ≺ □q")
-    # the comparisons are named where the worlds are, and spelled out below them: the one that
-    # fails, and its converse, which holds
-    assert r"$\Vdash c_{1}, \lnot c_{2}, c_{3}$" in tex
-    assert r"{$c_{1} = \Box p \preccurlyeq \Box q$}" in tex and r"{$c_{3} = \Box q \preccurlyeq \Box p$}" in tex
+    assert r"[{$w_{0}$\nodepart{two}}]" in tex and "b_{1}" not in tex

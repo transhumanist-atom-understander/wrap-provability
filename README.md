@@ -14,41 +14,82 @@ with Decider("/path/to/decide-provability") as d:
     print(d.tex(parikh))               # the tableau as a prooftree of the LaTeX package prooftrees
     print(d.sentence_tex(parikh))      # the sentence in LaTeX
     print(d.lean(parikh))              # the tableau as a Lean file
+    d.models_lean("□p → p")            # ['{}']: the models of its open branches, as Lean terms
+    d.satisfied("□p → p", "{}")        # False: the sentence fails in a model, so it is not a theorem
 ```
 
 A tableau is spoken of by its sentence. Nothing is kept of it: Lean builds it for each thing
 that is asked of it, in well under a millisecond for a sentence like these, where the request
 itself takes a few milliseconds.
 
-A tableau that doesn't close has open branches, and `models_tex` draws the model each describes,
-as a list, from the leftmost branch to the rightmost, with one model for branches that are
-drawn the same. The list is empty if the tableau closes.
+A tableau that doesn't close has open branches, and each describes a countermodel.
+`models_lean` gives them as a list, from the leftmost branch to the rightmost, with one model
+for branches that describe the same, and `models_tex` draws them, in that order. The list is
+empty if the tableau closes.
 
 ```python
-    for model in d.models_tex("□p → p"):   # LaTeX trees: here, one
+    for model in d.models_lean("□p ∧ □q → □(p ∧ q) ≼ □p"):   # Lean terms: here, one
+        print(model)
+    for model in d.models_tex("□p ∧ □q → □(p ∧ q) ≼ □p"):    # LaTeX trees: here, one
         print(model)
 ```
 
+    { order := [["□p"], ["□(p ∧ q)"]] }
     \begin{forest}
       for tree={rectangle split, rectangle split horizontal, rectangle split parts=2, inner sep=2pt,
         anchor=text, parent anchor=one south, child anchor=one north, l=12mm, l sep=0pt, s sep=5mm,
         edge={->, >=stealth}}
-      [{$w_{0}$\nodepart{two}$\Vdash \lnot p$}]
+      [{$w_{0}$\nodepart{two}$\Vdash b_{1} \prec b_{2}$}]
+      \node[anchor=north, inner sep=0pt] at ([yshift=-3mm]current bounding box.south) {$b_{1} = \Box p$};
+      \node[anchor=north, inner sep=0pt] at ([yshift=-3mm]current bounding box.south) {$b_{2} = \Box (p \land q)$};
     \end{forest}
 
-Each can be pasted into the body of a document that has `\usepackage{forest}`,
+A tree can be pasted into the body of a document that has `\usepackage{forest}`,
 `\usepackage{amssymb}` and `\usetikzlibrary{shapes.multipart}`, as the `prooftree` of `tex` can
 into one with `\usepackage{prooftrees}`, which loads `forest` itself. It is `forest` that puts
 the worlds where they go, from the sizes of what is typeset by them, so a letter takes the room
 that it does in print, however it was typed.
-The worlds are drawn as a tree, an arrow from each to the worlds started from it, and stand for
-the transitive order that generates. By each world is what the branch says there of the
-sentence letters and the comparisons; a letter it says nothing of can be valued either way.
-The comparisons are long, so they are named `c₁`, `c₂` and so on where the worlds are, and
-spelled out below them, which keeps the drawing narrow enough for a page. Of
-a sentence of GL each is a countermodel, and of a sentence with comparisons too, a model of
-R⁻: the comparisons a world says nothing of are settled by how the boxed formulas came to hold
-on the way down to it.
+The worlds are drawn as a tree, an arrow from each to the worlds just below it, and stand for
+the transitive order that generates. By each world is what holds there: its sentence letters,
+and the order in which the boxed formulas that first hold there are witnessed, `≺` between
+those witnessed one before the other and `≈` between those witnessed together. The boxed
+formulas are long, so they are named `b₁`, `b₂` and so on where the worlds are, and spelled out
+below them, which keeps the drawing narrow enough for a page.
+
+## Models
+
+A model is a Lean term, of the decider's type `Tableau.Model`: a world, and the worlds below it.
+
+```python
+    model = '''{ sees := [{ order := [["□p"], ["□q"]] },
+                         { order := [["□q"], ["□p"]] }] }'''
+    d.satisfied("◇(□p ≺ □q) ∧ ◇(□q ≺ □p)", model)      # True: it holds in the model
+    d.satisfied("¬(◇(□p ≺ □q) ∧ ◇(□q ≺ □p))", model)   # False: so this is not a theorem of R⁻
+    print(d.model_tex(model))                            # the model as a LaTeX tree
+```
+
+`letters` are the sentence letters that hold at a world, `sees` the worlds just below it, each
+such a term, and `order` is for the boxed formulas that first hold at the world, written as in
+a sentence: those of a list are witnessed together, before those of the next list, and those in
+no list after them all, together. A field that is left out is empty, and `{}` is a world where
+no letter holds, with no world below. The tree is read as the transitive order it generates: a
+boxed formula holds at a world if its formula holds at every world below it, and is witnessed
+at the world where it first holds, after those that held already at the world above; `□A ≺ □B`
+holds at a world if `□A` holds there and `□B` doesn't, or was witnessed after it, and `□A ≼ □B`
+if `□A` holds there and `□B` doesn't, or wasn't witnessed before it. So the model above has two
+worlds below its first, where `□p` and `□q` first hold, in one order at one and the other at
+the other.
+
+Every such term is a model of R⁻, [as the decider's README
+has it](https://github.com/transhumanist-atom-understander/decide-provability#models), so there
+is nothing to check of a model but what holds in it: a sentence that is not `satisfied` by one
+is not a theorem of R⁻. That needs no tableau, and takes a few milliseconds, so a model written
+by hand shows a non-theorem whose tableau is too large to build: write the model, and ask
+whether the sentence is satisfied by it. `satisfied` takes the sentence first, as every method
+does, and the model second. `model_tex` turns the Lean term of a model into its LaTeX tree, and
+`models_tex` gives what it makes of each of `models_lean`. Both raise `ValueError` if Lean
+doesn't read the model, or if it has a letter that isn't one or something in an order that
+isn't a boxed formula.
 
 The rules for comparisons are complete for R⁻, as
 [the decider's README](https://github.com/transhumanist-atom-understander/decide-provability#witness-comparisons)
@@ -79,7 +120,7 @@ project, with its library imported, and talks to it until the `with` block ends.
 the directory of a checkout of that Lean project, which it builds, with `lake build`, if it is
 not built: there is no default. The REPL starts in a second once built. A sentence letter is
 any run of characters other than whitespace, parentheses and the connectives, and `tex`,
-`sentence_tex` and `models_tex` print its Greek letters and other such characters as LaTeX
+`sentence_tex`, `models_tex` and `model_tex` print its Greek letters and other such characters as LaTeX
 commands, as `pylatexenc` gives them, `φ` as `\ensuremath{\varphi}`, which is `\varphi` in math
 mode, whatever comes after it; a letter can be LaTeX to begin with, `\varphi` or `p_{1}`, and is
 printed as it is. The LaTeX is for LaTeX to compile, not for MathJax or KaTeX. Lean gives the sentence letters, and the LaTeX as a format
@@ -113,3 +154,9 @@ its sentences again from Guaspari and Solovay's models of R⁻, by brute force, 
 random too: the two must agree. That search is exponential, so it is for small sentences. It
 also has Lean read the Lean files of some tableaux and print them again, which must give the
 file: nothing else reads one.
+
+`tests/test_models.py` is about models. It has the decider check each model that an open
+tableau describes, for the non-theorems of both lists and for sentences at random: the sentence
+must fail in it. It has it check the theorems of both lists in models at random, where each
+must hold. And it has `tests/witness_semantics.py` work out again what holds in a model,
+straight from what that means, for sentences and models at random: the two must agree.

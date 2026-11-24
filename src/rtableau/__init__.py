@@ -5,12 +5,20 @@
         d.tex("⊡(Π ↔ □□Π ≺ □Π) → □Π")            # the tableau as a LaTeX prooftree
         d.sentence_tex("⊡(Π ↔ □□Π ≺ □Π) → □Π")   # the sentence in LaTeX
         d.models_tex("□p → p")                    # the models of its open branches as LaTeX trees
+        d.models_lean("□p → p")                   # the same models as Lean terms
         d.lean("□p → p")                          # the tableau as a Lean file
+
+        d.satisfied("□p → p", "{}")               # whether the sentence holds in a model: a Lean term
+        d.model_tex("{}")                         # the model as a LaTeX tree
 
 The sentences are those of Guaspari and Solovay's R⁻: GL's, with the witness comparisons
 `□A ≺ □B` and `□A ≼ □B`. The rules for comparisons are complete for R⁻, so a tableau closes if
 its sentence is a theorem of R⁻ and doesn't if it is not; for a sentence of GL the tableau is
 GL's.
+
+A model is a Lean term, of the decider's type `Tableau.Model`, and every such term is a model
+of R⁻: so a sentence that is not `satisfied` by one is not a theorem, whether the model is one
+that a tableau gave or one written by hand, and that check needs no tableau.
 
 `decider` is the directory of a checkout of the Lean project `decide-provability`; there is no
 default, it must be given. A `Decider` builds the project, with `lake build`, and runs the Lean
@@ -74,22 +82,30 @@ class Decider(LeanServer):
             raise ValueError(str(e)) from None
         return "".join(m.data for m in reply.messages if m.severity == "info")
 
+    def _printed(self, command):
+        """What `command` prints, where it prints a string literal that Lean has quoted, which
+        is on one line: the REPL takes time that is quadratic in the lines of what is printed,
+        minutes for a tableau of 100,000."""
+        escapes = {"n": "\n", "t": "\t"}
+        literal = self._eval(command)
+        return re.sub(r"\\(x[0-9a-f]{2}|.)", lambda m: chr(int(m[1][1:], 16)) if len(m[1]) == 3 else escapes.get(m[1], m[1]), literal[1:-1])
+
     def _decide(self, sentence, show):
         """What the Lean function `show` makes of the tableau for `sentence`, which Lean builds
-        for it. Lean prints it as a string literal, which is on one line: the REPL takes time
-        that is quadratic in the lines of what is printed, minutes for a tableau of 100,000."""
-        literal = self._eval(f"Tableau.decide {json.dumps(sentence, ensure_ascii=False)} (String.quote ∘ {show})")
-        escapes = {"n": "\n", "t": "\t"}
-        return re.sub(r"\\(x[0-9a-f]{2}|.)", lambda m: chr(int(m[1][1:], 16)) if len(m[1]) == 3 else escapes.get(m[1], m[1]), literal[1:-1]).strip()
+        for it."""
+        return self._printed(f"Tableau.decide {json.dumps(sentence, ensure_ascii=False)} (String.quote ∘ {show})").strip()
+
+    def _latex(self, letters):
+        """The sentence letters `letters`, with their Greek letters and other such characters
+        as LaTeX commands, as `pylatexenc` gives those: what goes in the fields of the format
+        strings that Lean gives LaTeX as. Only the letters are turned into LaTeX here. It gives
+        `φ` as `\\ensuremath{\\varphi}`, which is for LaTeX to compile, as all the LaTeX here
+        is: it is not for MathJax or KaTeX."""
+        return [unicode_to_latex(a, non_ascii_only=True) for a in letters]
 
     def _letters(self, sentence):
-        """The sentence letters of `sentence`, as Lean gives them, with their Greek letters and
-        other such characters as LaTeX commands, as `pylatexenc` gives those: what goes in the
-        fields of the format strings that Lean gives LaTeX as. Only the letters are turned into
-        LaTeX here. It gives `φ` as `\\ensuremath{\\varphi}`, which is for LaTeX to compile, as
-        all the LaTeX here is: it is not for MathJax or KaTeX."""
-        letters = self._eval(f"Tableau.letters {json.dumps(sentence, ensure_ascii=False)}").split(" ")
-        return [unicode_to_latex(a, non_ascii_only=True) for a in letters]
+        """The sentence letters of `sentence`, as Lean gives them, in LaTeX."""
+        return self._latex(self._eval(f"Tableau.letters {json.dumps(sentence, ensure_ascii=False)}").split(" "))
 
     def _tex(self, sentence, show):
         """The LaTeX that the Lean function `show` makes of the tableau for `sentence`, in a
@@ -111,17 +127,55 @@ class Decider(LeanServer):
 
     def models_tex(self, sentence):
         """The models that the open branches of the tableau for `sentence` describe, each as a
-        tree of the LaTeX package `forest`, which also needs the package `amssymb` and the TikZ
-        library `shapes.multipart`: a list, the branches from left to right, with one model for branches that are drawn the same, and
-        empty if the tableau closes. The worlds are drawn as a tree, with an arrow from each to
-        the worlds started from it, and stand for the transitive order that generates; by each
-        is what the branch says there of the sentence letters and the comparisons, which are
-        named `c₁`, `c₂` and so on there and spelled out below the worlds. Each is a
-        countermodel, a model of R⁻, however the letters that a world says nothing of are valued
-        there; the comparisons it says nothing of are settled by how the boxed formulas came to
-        hold on the way down to it."""
+        tree of the LaTeX package `forest`, as `model_tex` gives it: a list, the branches from
+        left to right, with one model for branches that describe the same, and empty if the
+        tableau closes. They are the models of `models_lean`, in that order."""
         printed = self._tex(sentence, '(fun t s => "\\n".intercalate (t.modelsTex s))')
         return [model.strip() for model in printed.split("\n\n") if model.strip()]
+
+    def models_lean(self, sentence):
+        """The models that the open branches of the tableau for `sentence` describe, each as a
+        Lean term, a model as `satisfied` and `model_tex` take one: a list, the branches from
+        left to right, with one model for branches that describe the same, and empty if the
+        tableau closes. Each is a countermodel: `sentence` is not `satisfied` by it."""
+        printed = self._decide(sentence, '(fun t => "\\n\\n".intercalate t.modelsLean)')
+        return printed.split("\n\n") if printed else []
+
+    def satisfied(self, sentence, model):
+        """Whether `sentence` holds in `model`, at its first world. A model is a Lean term of
+        the decider's type `Tableau.Model`, a world and the worlds below it:
+
+            { sees := [{ letters := ["p"], order := [["□q"], ["□p", "□r"]] }, {}] }
+
+        `letters` are the sentence letters that hold at the world, `sees` the worlds just below
+        it, each such a term, and `order` is for the boxed formulas that first hold at the
+        world: those of a list are witnessed together, before those of the next list, and
+        those in no list after them all, together. A field left out is empty, and `{}` is a
+        world where no letter holds, with none below. The tree is read as the transitive order
+        it generates: a boxed formula holds at a world if its formula holds at every world
+        below, and `□A ≺ □B` if `□A` holds there and `□B` doesn't, or was witnessed after it,
+        on the way down or in the order of the world where both first held.
+
+        Every such term is a model of R⁻, so a sentence that is not satisfied by one is not a
+        theorem of R⁻, and no tableau is built to see it. Raises `ValueError` if the sentence
+        doesn't parse, if Lean doesn't read the model, or if it has a letter that isn't one or
+        something in an order that isn't a boxed formula."""
+        return self._eval(f"Tableau.satisfied {json.dumps(sentence, ensure_ascii=False)} ({model})") == "true"
+
+    def model_tex(self, model):
+        """The model `model`, a Lean term as `satisfied` takes one, as a tree of the LaTeX
+        package `forest`, which also needs the package `amssymb` and the TikZ library
+        `shapes.multipart`. The worlds are drawn as a tree, `w₀` the first and the others
+        numbered on from it, each before the worlds below it, with an arrow from each to the
+        worlds just below it; the arrows stand for the transitive order that generates. By
+        each world is what holds there: its sentence letters, and the order of the boxed
+        formulas that first hold there, `≺` between those witnessed one before the other and
+        `≈` between those witnessed together. The boxed formulas are named `b₁`, `b₂` and so
+        on there, and spelled out below the worlds. Only what first holds at a world is in its
+        order, whatever the model has written there, since nothing else is ordered there.
+        Raises `ValueError` as `satisfied` does."""
+        letters, _, tex = self._printed(f"Tableau.model ({model}) (String.quote ∘ Tableau.Model.format)").partition("\n")
+        return tex.format(*self._latex(letters.split(" "))).strip()
 
     def lean(self, sentence):
         """The tableau for `sentence` as a Lean file, which defines it as `t` and says, above

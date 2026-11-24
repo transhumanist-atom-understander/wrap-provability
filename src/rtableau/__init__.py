@@ -52,9 +52,16 @@ class Decider(LeanServer):
     sentence letter is any run of characters other than whitespace, parentheses and the
     connectives, `¬ □ ◇ ⊡` bind tightest, then `≺` and `≼`, which compare boxed formulas, then
     `∧`, `∨`, `→`, `↔`, each associating to the right. Each method raises `ValueError` if its
-    sentence doesn't parse."""
+    sentence doesn't parse.
 
-    def __init__(self, project):
+    `timeout` is how many seconds Lean is given for each thing that is asked of it, and by
+    default it is given as long as it takes. A tableau can be very large, so with a timeout a
+    method raises `TimeoutError` if Lean takes longer than that. The REPL is killed then, since
+    there is no other way to stop it, and started again, which takes a second: the `Decider`
+    is as it was, for the next request."""
+
+    def __init__(self, project, timeout=None):
+        self._timeout = timeout
         lean = LocalProject(directory=project, auto_build=False)
         try:
             lean.build(verbose=False)
@@ -63,10 +70,18 @@ class Decider(LeanServer):
         super().__init__(LeanREPLConfig(project=lean, local_repl_path=Path(project), build_repl=False))
         self._library = self._run("import RTableau").env
 
-    def _run(self, source, env=None):
+    def _run(self, source, env=None, timeout=None):
         """Lean's reply to the Lean file `source`, or to `source` where the reply with the
-        environment `env` left off; raises `LeanError` with Lean's errors."""
-        reply = self.run(Command(cmd=source, env=env))
+        environment `env` left off; raises `LeanError` with Lean's errors. Lean is given
+        `timeout` seconds for it, if that is not `None`: past that `lean-interact` kills the
+        REPL, so it is started again here, with the library imported, and `TimeoutError` is
+        raised."""
+        try:
+            reply = self.run(Command(cmd=source, env=env), timeout=timeout)
+        except TimeoutError:
+            self.start()
+            self._library = self._run("import RTableau").env
+            raise TimeoutError(f"Lean took more than {timeout} seconds, and was stopped") from None
         if isinstance(reply, REPLError):
             raise LeanError(reply.message)
         if errors := reply.get_errors():
@@ -75,9 +90,10 @@ class Decider(LeanServer):
 
     def _eval(self, command):
         """What `#eval command` prints, where `command` is of a sentence; raises `ValueError`
-        with the parse error if the sentence doesn't parse."""
+        with the parse error if the sentence doesn't parse, and `TimeoutError` if Lean takes
+        longer than the timeout."""
         try:
-            reply = self._run(f"#eval {command}", self._library)
+            reply = self._run(f"#eval {command}", self._library, self._timeout)
         except LeanError as e:
             raise ValueError(str(e)) from None
         return "".join(m.data for m in reply.messages if m.severity == "info")

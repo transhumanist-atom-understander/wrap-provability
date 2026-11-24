@@ -130,6 +130,24 @@ Lean has it. `¬ □ ◇ ⊡` bind tightest, then `≺` and `≼`, then `∧`, `
 `(□p ≺ □q) ∧ r`, and `¬□p ≺ □q` doesn't parse, but `¬(□p ≺ □q)` does. Each method raises
 `ValueError` if its sentence doesn't parse.
 
+A tableau can be very large, and Lean is given as long as it takes to build one, unless the
+`Decider` has a timeout, in seconds, for each thing that is asked of it:
+
+```python
+with Decider("/path/to/decide-provability", timeout=10) as d:
+    try:
+        d.closed(sentence)
+    except TimeoutError:
+        ...                        # the tableau took more than ten seconds
+    d.closed("□(□p → p) → □p")     # True: the Decider is as it was
+```
+
+A method raises `TimeoutError` if Lean takes longer than that. The REPL is killed then, since
+there is no other way to stop it, and started again, which takes a second. A sentence whose
+tableau is too large can still be settled: a non-theorem by a model written by hand, which
+`satisfied` checks with no tableau, and a theorem `A → B` by a lemma `L`, from the tableaux of
+`A → L` and `A ∧ L → B`.
+
 ## Setup
 
 Check out the decider. It requires the REPL as a Lake dependency, at the tag for its toolchain,
@@ -154,6 +172,9 @@ its sentences again from Guaspari and Solovay's models of R⁻, by brute force, 
 random too: the two must agree. That search is exponential, so it is for small sentences. It
 also has Lean read the Lean files of some tableaux and print them again, which must give the
 file: nothing else reads one.
+
+`tests/test_timeout.py` gives a `Decider` a second for a tableau that takes much longer, and
+checks that it raises `TimeoutError` and is as it was after.
 
 `tests/test_models.py` is about models. It has the decider check each model that an open
 tableau describes, for the non-theorems of both lists and for sentences at random: the sentence

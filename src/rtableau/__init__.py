@@ -60,7 +60,7 @@ class Decider(LeanServer):
     there is no other way to stop it, and started again, which takes a second: the `Decider`
     is as it was, for the next request."""
 
-    def __init__(self, project, timeout=None):
+    def __init__(self, project, timeout=1):
         self._timeout = timeout
         lean = LocalProject(directory=project, auto_build=False)
         try:

@@ -36,6 +36,16 @@ from lean_interact.interface import LeanError as REPLError
 from pylatexenc.latexencode import unicode_to_latex
 
 
+def _math(tex):
+    """`tex`, a sentence letter as `pylatexenc` gives it, without its `\\ensuremath`s: each is
+    its argument, with a space after it if that ends in a command and a letter comes next,
+    which would otherwise be read as more of the command's name."""
+    def bare(m):
+        space = " " if re.search(r"\\[A-Za-z]+$", m[1]) and re.match(r"[A-Za-z]", tex[m.end():]) else ""
+        return m[1] + space
+    return re.sub(r"\\ensuremath\{((?:[^{}]|\{[^{}]*\})*)\}", bare, tex)
+
+
 class LeanError(Exception):
     """Lean rejected the source: the message is its errors."""
 
@@ -114,10 +124,11 @@ class Decider(LeanServer):
     def _latex(self, letters):
         """The sentence letters `letters`, with their Greek letters and other such characters
         as LaTeX commands, as `pylatexenc` gives those: what goes in the fields of the format
-        strings that Lean gives LaTeX as. Only the letters are turned into LaTeX here. It gives
-        `φ` as `\\ensuremath{\\varphi}`, which is for LaTeX to compile, as all the LaTeX here
-        is: it is not for MathJax or KaTeX."""
-        return [unicode_to_latex(a, non_ascii_only=True) for a in letters]
+        strings that Lean gives LaTeX as. Only the letters are turned into LaTeX here.
+        `pylatexenc` gives `φ` as `\\ensuremath{\\varphi}`, and the `\\ensuremath` is taken
+        off, since the LaTeX is in math mode already, and MathJax doesn't have it: a space is
+        put after the command, if a letter comes after it, so that `φx` is `\\varphi x`."""
+        return [_math(unicode_to_latex(a, non_ascii_only=True)) for a in letters]
 
     def _letters(self, sentence):
         """The sentence letters of `sentence`, as Lean gives them, in LaTeX."""

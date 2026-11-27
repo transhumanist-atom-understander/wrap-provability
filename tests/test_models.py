@@ -142,7 +142,7 @@ def test_model_tex(decider):
     assert tex.startswith(r"\begin{forest}") and tex.endswith(r"\end{forest}")
     assert test_gl.worlds(tex) == [
         r"  [{$w_{0}$\nodepart{two}}",
-        r"    [{$w_{1}$\nodepart{two}$\Vdash \ensuremath{\varphi}, q$}",
+        r"    [{$w_{1}$\nodepart{two}$\Vdash \varphi, q$}",
         r"      [{$w_{2}$\nodepart{two}}]]",
         r"    [{$w_{3}$\nodepart{two}$\Vdash b_{1} \prec b_{2} \approx b_{3}$}]]"]
-    assert r"{$b_{1} = \Box \ensuremath{\varphi}$}" in tex and r"{$b_{3} = \Box r$}" in tex and "b_{4}" not in tex
+    assert r"{$b_{1} = \Box \varphi$}" in tex and r"{$b_{3} = \Box r$}" in tex and "b_{4}" not in tex

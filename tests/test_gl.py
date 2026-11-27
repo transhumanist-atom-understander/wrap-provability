@@ -92,25 +92,27 @@ def test_parse_error(decider, method):
 
 
 def test_tex(decider):
-    assert decider.sentence_tex("□(□φ → φ) → □φ") == r"\Box (\Box \ensuremath{\varphi} \to \ensuremath{\varphi}) \to \Box \ensuremath{\varphi}"
+    assert decider.sentence_tex("□(□φ → φ) → □φ") == r"\Box (\Box \varphi \to \varphi) \to \Box \varphi"
     tex = decider.tex("□(□φ → φ) → □φ")
-    assert tex.startswith(r"\begin{prooftree}") and r"[{\lnot \Box \ensuremath{\varphi}, 0}" in tex
+    assert tex.startswith(r"\begin{prooftree}") and r"[{\lnot \Box \varphi, 0}" in tex
 
 
 def test_letters(decider):
     """A sentence letter's Greek letters and other such characters are LaTeX commands in LaTeX,
-    as `pylatexenc` gives them, in an `\\ensuremath` that ends the command, whatever comes next;
-    the rest of the letter is as it is: its braces, and LaTeX that it has already."""
-    assert decider.sentence_tex(r"□p_{1} → φ1 ∨ \varphi ∨ {0}") == r"\Box p_{1} \to (\ensuremath{\varphi}1 \lor (\varphi \lor {0}))"
-    assert decider.sentence_tex("φx → xφ") == r"\ensuremath{\varphi}x \to x\ensuremath{\varphi}"
-    assert r"[{\lnot (p_{1} \to \ensuremath{\varphi}), 0}" in decider.tex("p_{1} → φ")
+    as `pylatexenc` gives them but without its `\\ensuremath`, with a space after a command that
+    a letter comes after; the rest of the letter is as it is: its braces, and LaTeX that it has
+    already."""
+    assert decider.sentence_tex(r"□p_{1} → φ1 ∨ \varphi ∨ {0}") == r"\Box p_{1} \to (\varphi1 \lor (\varphi \lor {0}))"
+    assert decider.sentence_tex("φx → xφ") == r"\varphi x \to x\varphi"
+    assert decider.sentence_tex("ℕx ∧ Πφ") == r"\mathbb{N}x \land \Pi\varphi"
+    assert r"[{\lnot (p_{1} \to \varphi), 0}" in decider.tex("p_{1} → φ")
     [model] = decider.models_tex("¬α_{2}")
-    assert r"$\Vdash \ensuremath{\alpha}_{2}$" in model
+    assert r"$\Vdash \alpha_{2}$" in model
     # no letter at all, and more than ten
     assert decider.sentence_tex("□⊥ → ⊥") == r"\Box \bot \to \bot"
     letters = "a b c d e f g h i j k φ".split()
     assert decider.sentence_tex(" ∧ ".join(letters)).count(r"\varphi") == 1
-    assert decider.sentence_tex(" ∧ ".join(reversed(letters))).startswith(r"\ensuremath{\varphi} \land (k \land (j ")
+    assert decider.sentence_tex(" ∧ ".join(reversed(letters))).startswith(r"\varphi \land (k \land (j ")
 
 
 def test_claim(decider):
@@ -132,7 +134,7 @@ def test_models_tex(decider):
     assert model.startswith(r"\begin{forest}") and model.endswith(r"\end{forest}")
     assert worlds(model) == [r"  [{$w_{0}$\nodepart{two}}]"]
     [model] = decider.models_tex("φ → □φ")
-    assert worlds(model) == [r"  [{$w_{0}$\nodepart{two}$\Vdash \ensuremath{\varphi}$}", r"    [{$w_{1}$\nodepart{two}}]]"]
+    assert worlds(model) == [r"  [{$w_{0}$\nodepart{two}$\Vdash \varphi$}", r"    [{$w_{1}$\nodepart{two}}]]"]
     # an open branch for each way that p ∨ q → p ∧ q fails
     assert [worlds(m) for m in decider.models_tex("p ∨ q → p ∧ q")] == [
         [r"  [{$w_{0}$\nodepart{two}$\Vdash p$}]"], [r"  [{$w_{0}$\nodepart{two}$\Vdash q$}]"]]
@@ -147,4 +149,4 @@ def test_models_tex(decider):
     # the room a letter takes is the room it takes in print, however it was typed
     [typed], [printed] = decider.models_tex(r"¬(\varphi ∧ \psi)"), decider.models_tex("¬(φ ∧ ψ)")
     assert r"$\Vdash \varphi, \psi$" in typed
-    assert typed == printed.replace(r"\ensuremath{\varphi}", r"\varphi").replace(r"\ensuremath{\psi}", r"\psi")
+    assert typed == printed

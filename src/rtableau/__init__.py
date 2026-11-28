@@ -71,6 +71,9 @@ class Decider(LeanServer):
     is as it was, for the next request."""
 
     def __init__(self, project, timeout=1):
+        # `LeanServer.__del__` kills the REPL, and would fail for want of `_proc` if the build
+        # raised before `LeanServer.__init__` set it, burying the build's error under its own.
+        self._proc = None
         self._timeout = timeout
         lean = LocalProject(directory=project, auto_build=False)
         try:
